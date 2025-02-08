@@ -2,13 +2,13 @@
 
 #universe = vanilla
 universe = container
-container_image = docker://python:3.10
+container_image = docker://nicholascorrado/multitask-rl:chtc
 
 executable = job.sh
 initial_dir = $(results_dir)
-log = logs/$(Cluster)_$(Process).log
-output = logs/$(Cluster)_$(Process).out
-error = logs/$(Cluster)_$(Process).err
+log = logs/$(Process).log
+output = logs/$(Process).out
+error = logs/$(Process).err
 arguments = $(Process) $(Step) $(params)
 
 # If building on CentOS 8 (Recommended)

@@ -10,7 +10,7 @@ mkdir -p ${results_dir}/logs
 
 condor_submit job.sub \
   results_dir=${results_dir} \
-  commands_file=${commands_file} \
+  commands_file=${commands_file_tmp} \
   num_jobs=${2:-1}
 
 # remove temp commands file
