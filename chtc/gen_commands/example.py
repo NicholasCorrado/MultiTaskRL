@@ -2,8 +2,8 @@ import os
 
 if __name__ == "__main__":
 
-    os.makedirs('commands', exist_ok=True)
-    f = open(f"commands/example.txt", "w")
+    os.makedirs('../commands', exist_ok=True)
+    f = open(f"../commands/example.txt", "w")
     
     timesteps = 1000000
 
