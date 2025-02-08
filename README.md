@@ -34,3 +34,7 @@ MEMORY,DISK,PYTHON COMMAND
 is in the `commands` directory, and `n` denote the number of trials you want to run each command for. For instance,
 `n=10` will run each experiment 10 times with seeds 0-9.
 5. Results will be saved to `results/{commands_file}` and job logs are saved to `results/{commands_file}/logs`.
+
+## CHTC Interactive Usage
+1. In `job_i.sub`, update `container_image = docker://nicholascorrado/multitask-rl` to point to your new Docker image.
+2. Run `./submit_interactive.sh` to start an interactive session.
