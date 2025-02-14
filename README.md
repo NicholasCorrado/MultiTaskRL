@@ -4,6 +4,7 @@
 To install with conda:
 ```commandline
 pip install -r requirements.txt
+pip install -e custom_envs
 ```
 To install with Docker:
 1. Install Docker
