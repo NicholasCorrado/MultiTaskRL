@@ -7,6 +7,7 @@ echo $cmd $pid $step
 
 git clone -b chtc https://github.com/NicholasCorrado/MultiTaskRL.git
 cd MultiTaskRL
+pip install -e custom_envs
 
 # run your script -- $step ensures seeding is consistent across experiment batches
 #python $cmd --run_id $step --seed $step
