@@ -21,7 +21,7 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
 
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminateds, truncateds, infos = env.step(actions)
-            done = terminateds or truncateds
+            done = np.logical_or(terminateds, truncateds)
 
             # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
             obs = next_obs

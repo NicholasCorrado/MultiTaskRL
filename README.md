@@ -35,6 +35,9 @@ is in the `commands` directory, and `n` denote the number of trials you want to 
 `n=10` will run each experiment 10 times with seeds 0-9.
 5. Results will be saved to `results/{commands_file}` and job logs are saved to `results/{commands_file}/logs`.
 
+After a job finishes, check the memory and disk usage in the the `.log` output to ensure you requested an appropriate amount.
+If you requested much more than was actually used by the job, reduce it.
+
 ## CHTC Interactive Usage
 1. In `job_i.sub`, update `container_image = docker://nicholascorrado/multitask-rl` to point to your new Docker image.
 2. Run `./submit_interactive.sh` to start an interactive session.
