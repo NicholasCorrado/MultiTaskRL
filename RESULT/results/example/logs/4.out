@@ -1,0 +1,9 @@
+python ppo_continuous_action.py --env_id HalfCheetah-v5 --learning_rate 0.0003 --num_steps 8192 --output_subdir lr_0.0003/ns_8192 --total_timesteps 1000000 4 0
+results/
+results/HalfCheetah-v5/
+results/HalfCheetah-v5/ppo/
+results/HalfCheetah-v5/ppo/lr_0.0003/
+results/HalfCheetah-v5/ppo/lr_0.0003/ns_8192/
+results/HalfCheetah-v5/ppo/lr_0.0003/ns_8192/run_0/
+results/HalfCheetah-v5/ppo/lr_0.0003/ns_8192/run_0/config.yml
+results/HalfCheetah-v5/ppo/lr_0.0003/ns_8192/run_0/evaluations.npz

@@ -104,7 +104,9 @@ class Args:
     """the number of iterations (computed in runtime)"""
 
 
-def make_env(env_id, idx, capture_video, run_name):
+def make_env(env_id, idx, capture_video, run_name, task_id=0):
+    print(f"Creating environment {env_id} with Task ID: {task_id}")
+    
     def thunk():
         if capture_video and idx == 0:
             env = gym.make(env_id, render_mode="rgb_array")
@@ -192,6 +194,7 @@ if __name__ == "__main__":
     with open(os.path.join(args.output_dir, "config.yml"), "w") as f:
         yaml.dump(args, f, sort_keys=True)
 
+
     # wandb
     if args.track:
         import wandb
@@ -216,10 +219,10 @@ if __name__ == "__main__":
 
     # env setup
     envs = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, i, args.capture_video, run_name) for i in range(args.num_envs)],
+        [make_env(args.env_id, i, args.capture_video, run_name, task_id=f"task {i}") for i in range(args.num_envs)],
     )
     envs_eval = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, i, args.capture_video, run_name) for i in range(1)],
+        [make_env(args.env_id, i, args.capture_video, run_name, task_id=f"task {i}") for i in range(1)],
     )
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 

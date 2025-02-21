@@ -1,0 +1,35 @@
+Cloning into 'MultiTaskRL'...
+WARNING: The directory '/.cache/pip' or its parent directory is not owned or is not writable by the current user. The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you should use sudo's -H flag.
+    error: subprocess-exited-with-error
+    
+    × python setup.py develop did not run successfully.
+    │ exit code: 1
+    ╰─> [4 lines of output]
+        running develop
+        /usr/local/lib/python3.11/site-packages/setuptools/command/easy_install.py:144: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.
+          warnings.warn(
+        error: [Errno 13] Permission denied: '/usr/src/python'
+        [end of output]
+    
+    note: This error originates from a subprocess, and is likely not a problem with pip.
+error: subprocess-exited-with-error
+
+× python setup.py develop did not run successfully.
+│ exit code: 1
+╰─> [4 lines of output]
+    running develop
+    /usr/local/lib/python3.11/site-packages/setuptools/command/easy_install.py:144: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.
+      warnings.warn(
+    error: [Errno 13] Permission denied: '/usr/src/python'
+    [end of output]
+
+note: This error originates from a subprocess, and is likely not a problem with pip.
+
+[notice] A new release of pip is available: 24.0 -> 25.0.1
+[notice] To update, run: pip install --upgrade pip
+Traceback (most recent call last):
+  File "/var/lib/condor/execute/slot1/dir_3631174/MultiTaskRL/ppo_continuous_action.py", line 9, in <module>
+    import custom_envs
+ModuleNotFoundError: No module named 'custom_envs'
+tar: results: Cannot stat: No such file or directory
+tar: Exiting with failure status due to previous errors

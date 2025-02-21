@@ -18,12 +18,12 @@ if __name__ == "__main__":
     data_dict = {}
     seaborn.set_theme(style='whitegrid')
 
-    n_rows = 2
-    n_cols = 3
-    fig = plt.figure(figsize=(n_cols*3,n_rows*3))
+    n_rows = 1
+    n_cols = 1
+    fig = plt.figure(figsize=(n_cols*1,n_rows*1))
     i = 1
 
-    env_ids = ['Swimmer-v5', 'Hopper-v5', 'HalfCheetah-v5', 'Walker2d-v5', 'Ant-v5', 'Humanoid-v5']
+    env_ids = ['BanditHard-v0']
 
     for env_id in env_ids:
         ax = plt.subplot(n_rows, n_cols, i)
