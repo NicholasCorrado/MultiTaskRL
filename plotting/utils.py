@@ -115,7 +115,11 @@ def get_data(results_dir, x_name='timestep', y_name='return', filename='evaluati
     try:
         for subdir in os.listdir(results_dir):
             if 'run_' in subdir:
-                paths.append(f'{results_dir}/{subdir}/{filename}')
+                cur_path = f'{results_dir}/{subdir}/{filename}'
+                if os.path.isfile(cur_path):
+                    paths.append(cur_path)
+                else:
+                    print (f'No file at {cur_path}!')
     except Exception as e:
         print(e)
 

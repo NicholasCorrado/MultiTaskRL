@@ -11,8 +11,9 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
 
         obs, _ = env.reset()
         done = False
+        Done = False
 
-        while not done:
+        while not Done:
 
             # ALGO LOGIC: put action logic here
             with torch.no_grad():
@@ -22,6 +23,7 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminateds, truncateds, infos = env.step(actions)
             done = np.logical_or(terminateds, truncateds)
+            Done = done.all()
 
             # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
             obs = next_obs
@@ -44,5 +46,6 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
     return_std = np.std(logs['returns'])
     success_avg = np.mean(logs['successes'])
     success_std = np.std(logs['successes'])
-    return return_avg, return_std, success_avg, success_std
+    return_list = logs['returns']
+    return return_avg, return_std, success_avg, success_std, return_list
     # return np.array(eval_returns), np.array(eval_obs), np.array(eval_actions), np.array(eval_rewards)

@@ -2,6 +2,7 @@ from typing import Optional
 
 import gymnasium as gym
 import numpy as np
+from sympy.codegen.ast import float32
 
 
 class Bandit(gym.Env):
@@ -9,7 +10,7 @@ class Bandit(gym.Env):
 
         self.n = n
         self.action_space = gym.spaces.Discrete(self.n)
-        self.observation_space = gym.spaces.Box(low=0, high=1)
+        self.observation_space = gym.spaces.Box(low=np.array([0, 0], np.float32), high=np.array([np.inf, 1], np.float32),)
         self.task_id = task_id
         super().__init__()
 

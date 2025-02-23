@@ -18,20 +18,25 @@ if __name__ == "__main__":
     data_dict = {}
     seaborn.set_theme(style='whitegrid')
 
-    n_rows = 1
-    n_cols = 1
-    fig = plt.figure(figsize=(n_cols*1,n_rows*1))
+    n_rows = 3
+    n_cols = 3
+    fig = plt.figure(figsize=(n_cols*3,n_rows*3))
     i = 1
 
-    env_ids = ['BanditHard-v0']
+    env_ids = ['Task_1.0', 'Task_2.0', 'Task_3.0', 'Task_4.0', 'Task_5.0', 'Task_6.0', 'Task_7.0', 'Task_8.0', 'Task_9.0']
 
     for env_id in env_ids:
+        key = f"PPO"
+        results_dir = f"../results/{env_id}/ppo/"
+        if not os.path.exists(results_dir):
+            print (f'Task {env_id} does not have result!')
+            continue
+
         ax = plt.subplot(n_rows, n_cols, i)
+        ax.set_title(env_id)
         i+=1
 
         # Now we can use dot notation which is much cleaner
-        key = f"PPO"
-        results_dir = f"../results/{env_id}/ppo/"
         x, y = get_data(results_dir, x_name='timestep', y_name='return', filename='evaluations.npz')
         if y is not None:
             data_dict[key] = y
@@ -54,6 +59,7 @@ if __name__ == "__main__":
         )
         # Use scientific notation for x-axis
         plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
+
         # set fontsize of scientific notation label
         ax.xaxis.get_offset_text().set_fontsize('large')
 

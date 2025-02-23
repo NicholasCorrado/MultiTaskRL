@@ -46,6 +46,8 @@ class Args:
 
     run_id: int = None
     """Results will be saved to {output_dir}/run_{run_id} and seed will be set to run_id"""
+    task_id: float = 0
+    """Id of this task"""
 
     # Output
     output_rootdir: str = "results"
@@ -60,13 +62,15 @@ class Args:
     """Number of trajectories to collect during each evaluation"""
 
     # Algorithm specific arguments
-    env_id: str = "BanditHard-v0"
-    """the id of the environment"""
+    env_id: str = "BanditEasy-v0_BanditHard-v0"
+    """the ids of the environments"""
+    env_ids: list[str] = ("BanditEasy-v0", "BanditHard-v0")
+    """the complete id of the environment"""
     total_timesteps: int = 500000
     """total timesteps of the experiments"""
     learning_rate: float = 3e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 1
+    num_envs: int = 2
     """the number of parallel game environments"""
     num_steps: int = 128
     """the number of steps to run in each environment per policy rollout"""
@@ -104,14 +108,14 @@ class Args:
     """the number of iterations (computed in runtime)"""
 
 
-def make_env(env_id, idx, capture_video, run_name):
+def make_env(env_id, idx, capture_video, run_name, task_id = 0.0):
 
     def thunk():
         if capture_video and idx == 0:
-            env = gym.make(env_id, render_mode="rgb_array")
+            env = gym.make(env_id, render_mode="rgb_array", task_id = task_id)
             env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         else:
-            env = gym.make(env_id)
+            env = gym.make(env_id, task_id = task_id)
         env = gym.wrappers.RecordEpisodeStatistics(env)
         return env
 
@@ -158,13 +162,21 @@ class Agent(nn.Module):
         action = probs.sample()
         return action
 
+def env_id_helper(env_ids = ("BanditEasy-v0", "BanditHard-v0")):
+    long_env_id = env_ids[0]
+    for i in range(1, len(env_ids)):
+        long_env_id += "_" + env_ids[i]
+    return long_env_id
+
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
+    args.num_envs = len(args.env_ids)
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    args.env_id = env_id_helper(env_ids = args.env_ids)
+    run_name = f"Task_{args.task_id}__{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
 
     # Seeding
     if args.seed is None:
@@ -180,7 +192,7 @@ if __name__ == "__main__":
             torch.backends.cudnn.deterministic = args.torch_deterministic
 
     # Output path
-    args.output_dir = f"{args.output_rootdir}/{args.env_id}/ppo/{args.output_subdir}"
+    args.output_dir = f"{args.output_rootdir}/Task_{args.task_id}/ppo/{args.output_subdir}"
     if args.run_id is not None:
         args.output_dir += f"/run_{args.run_id}"
     else:
@@ -217,20 +229,25 @@ if __name__ == "__main__":
 
 
     # env setup
-    envs = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, i, args.capture_video, run_name) for i in range(args.num_envs)],
+    # envs_list, env_eval_list = [], []
+    # for i in range (args.num_envs):
+    env = gym.vector.SyncVectorEnv(
+        [make_env(args.env_ids[i], i, args.capture_video, run_name, task_id = args.task_id) for i in range(args.num_envs)],
     )
     envs_eval = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, i, args.capture_video, run_name) for i in range(1)],
+        [make_env(args.env_ids[i], i, args.capture_video, run_name, task_id = args.task_id) for i in range(args.num_envs)],
     )
-    assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
+    assert isinstance(env.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
+    # envs_list.append(env)
+    # envs_eval_list.append(envs_eval)
 
-    agent = Agent(envs).to(device)
+
+    agent = Agent(env).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
-    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device)
-    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
+    obs = torch.zeros((args.num_steps, args.num_envs) + env.single_observation_space.shape).to(device)
+    actions = torch.zeros((args.num_steps, args.num_envs) + env.single_action_space.shape).to(device)
     logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
     rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
     dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
@@ -240,7 +257,7 @@ if __name__ == "__main__":
     global_step = 0
     update_count = 0
     start_time = time.time()
-    next_obs, _ = envs.reset(seed=args.seed)
+    next_obs, _ = env.reset(seed=args.seed)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
 
@@ -266,7 +283,7 @@ if __name__ == "__main__":
             logprobs[step] = logprob
 
             # TRY NOT TO MODIFY: execute the game and log data.
-            next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
+            next_obs, reward, terminations, truncations, infos = env.step(action.cpu().numpy())
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
@@ -295,9 +312,9 @@ if __name__ == "__main__":
             returns = advantages + values
 
         # flatten the batch
-        b_obs = obs.reshape((-1,) + envs.single_observation_space.shape)
+        b_obs = obs.reshape((-1,) + env.single_observation_space.shape)
         b_logprobs = logprobs.reshape(-1)
-        b_actions = actions.reshape((-1,) + envs.single_action_space.shape)
+        b_actions = actions.reshape((-1,) + env.single_action_space.shape)
         b_advantages = advantages.reshape(-1)
         b_returns = returns.reshape(-1)
         b_values = values.reshape(-1)
@@ -375,7 +392,8 @@ if __name__ == "__main__":
         update_count += 1
 
         if iteration % args.eval_freq == 0:
-            return_avg, return_std, success_avg, success_std = simulate(env=envs_eval, actor=agent, eval_episodes=args.eval_episodes)
+            return_avg, return_std, success_avg, success_std, return_list = simulate(env=envs_eval, actor=agent, eval_episodes=args.eval_episodes)
+            return_avg = return_avg / (float)(args.num_envs)
 
             print(f"Eval num_timesteps={global_step}")
             print(f"episode_return={return_avg:.2f} +/- {return_std:.2f}")
@@ -386,6 +404,7 @@ if __name__ == "__main__":
             logs['return'].append(return_avg)
             logs['success_rate'].append(success_avg)
             logs['update'].append(update_count)
+            logs['return_list'].append(return_list)
 
             np.savez(
                 f'{args.output_dir}/evaluations.npz',
@@ -397,12 +416,12 @@ if __name__ == "__main__":
         torch.save(agent.state_dict(), model_path)
         print(f"model saved to {model_path}")
 
-        # if args.upload_model:
-        #     from cleanrl_utils.huggingface import push_to_hub
-        #
-        #     repo_name = f"{args.env_id}-{args.exp_name}-seed{args.seed}"
-        #     repo_id = f"{args.hf_entity}/{repo_name}" if args.hf_entity else repo_name
-        #     push_to_hub(args, episodic_returns, repo_id, "PPO", f"runs/{run_name}", f"videos/{run_name}-eval")
+    # if args.upload_model:
+    #     from cleanrl_utils.huggingface import push_to_hub
+    #
+    #     repo_name = f"{args.env_ids}-{args.exp_name}-seed{args.seed}"
+    #     repo_id = f"{args.hf_entity}/{repo_name}" if args.hf_entity else repo_name
+    #     push_to_hub(args, episodic_returns, repo_id, "PPO", f"runs/{run_name}", f"videos/{run_name}-eval")
 
-    envs.close()
+    env.close()
     writer.close()
