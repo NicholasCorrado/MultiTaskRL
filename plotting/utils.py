@@ -109,7 +109,7 @@ import warnings
 
 import numpy as np
 
-def get_data(results_dir, x_name='timestep', y_name='return', filename='evaluations.npz'):
+def get_data(results_dir, x_name='timestep', y_name='returns', lable_name='env_ids', filename='evaluations.npz'):
 
     paths = []
     try:
@@ -143,6 +143,7 @@ def get_data(results_dir, x_name='timestep', y_name='return', filename='evaluati
                 length = len(y)
             if len(y) == length:
                 y_list.append(y)
+            z = data_file[lable_name]
 
-    return x, np.array(y_list)
+    return x, np.array(y_list), z
 

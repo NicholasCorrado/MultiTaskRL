@@ -6,6 +6,7 @@ import torch
 def simulate(env, actor, eval_episodes, eval_steps=np.inf):
     logs = defaultdict(list)
     step = 0
+    num_env = 0
     for episode_i in range(eval_episodes):
         logs_episode = defaultdict(list)
 
@@ -31,21 +32,24 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
 
             step += 1
 
+            num_env = len(rewards)
+
             if step >= eval_steps:
                 break
         if step >= eval_steps:
             break
 
-        logs['returns'].append(np.sum(logs_episode['rewards']))
+        logs['returns'].append(logs_episode['rewards'])
+        logs['returns_avg'].append(np.mean(logs_episode['rewards']))
         try:
             logs['successes'].append(infos['is_success'])
         except:
             logs['successes'].append(False)
 
-    return_avg = np.mean(logs['returns'])
+    returns = np.mean(logs['returns'], axis = 0)
+    return_avg = np.mean(logs['returns_avg'])
     return_std = np.std(logs['returns'])
     success_avg = np.mean(logs['successes'])
     success_std = np.std(logs['successes'])
-    return_list = logs['returns']
-    return return_avg, return_std, success_avg, success_std, return_list
+    return returns, return_avg, return_std, success_avg, success_std
     # return np.array(eval_returns), np.array(eval_obs), np.array(eval_actions), np.array(eval_rewards)

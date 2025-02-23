@@ -4,6 +4,8 @@ import numpy as np
 import seaborn
 
 import matplotlib
+from sympy.printing.pretty.pretty_symbology import line_width
+
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
@@ -37,7 +39,7 @@ if __name__ == "__main__":
         i+=1
 
         # Now we can use dot notation which is much cleaner
-        x, y = get_data(results_dir, x_name='timestep', y_name='return', filename='evaluations.npz')
+        x, y, env_ids = get_data(results_dir, x_name='timestep', y_name='return_avg', filename='evaluations.npz')
         if y is not None:
             data_dict[key] = y
 

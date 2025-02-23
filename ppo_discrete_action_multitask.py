@@ -392,24 +392,32 @@ if __name__ == "__main__":
         update_count += 1
 
         if iteration % args.eval_freq == 0:
-            return_avg, return_std, success_avg, success_std, return_list = simulate(env=envs_eval, actor=agent, eval_episodes=args.eval_episodes)
-            return_avg = return_avg / (float)(args.num_envs)
+            returns, return_avg, return_std, success_avg, success_std = simulate(env=envs_eval, actor=agent, eval_episodes=args.eval_episodes)
+            returns = returns[0]
 
             print(f"Eval num_timesteps={global_step}")
             print(f"episode_return={return_avg:.2f} +/- {return_std:.2f}")
             print(f"episode_success={success_avg:.2f} +/- {success_std:.2f}")
-            print()
+
+            print(f"results_for_each_envs={returns}")
 
             logs['timestep'].append(global_step)
-            logs['return'].append(return_avg)
+            logs['returns'].append(returns) # individual results for each environments in this eval
+            logs['return_avg'].append(return_avg) # average result in this eval
             logs['success_rate'].append(success_avg)
             logs['update'].append(update_count)
-            logs['return_list'].append(return_list)
 
             np.savez(
                 f'{args.output_dir}/evaluations.npz',
                 **logs,
             )
+
+    for env_id_cur in args.env_ids:
+        logs['env_ids'].append(env_id_cur)
+    np.savez(
+        f'{args.output_dir}/evaluations.npz',
+        **logs,
+    )
 
     if args.save_model:
         model_path = f"runs/{run_name}/{args.exp_name}.cleanrl_model"
