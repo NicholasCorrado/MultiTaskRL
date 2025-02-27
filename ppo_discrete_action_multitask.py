@@ -176,7 +176,7 @@ if __name__ == "__main__":
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
     args.env_id = env_id_helper(env_ids = args.env_ids)
-    run_name = f"Task_{args.task_id}__{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
 
     # Seeding
     if args.seed is None:
@@ -192,7 +192,7 @@ if __name__ == "__main__":
             torch.backends.cudnn.deterministic = args.torch_deterministic
 
     # Output path
-    args.output_dir = f"{args.output_rootdir}/Task_{args.task_id}/ppo/{args.output_subdir}"
+    args.output_dir = f"{args.output_rootdir}/{args.env_id}/ppo/{args.output_subdir}"
     if args.run_id is not None:
         args.output_dir += f"/run_{args.run_id}"
     else:
@@ -232,10 +232,10 @@ if __name__ == "__main__":
     # envs_list, env_eval_list = [], []
     # for i in range (args.num_envs):
     env = gym.vector.SyncVectorEnv(
-        [make_env(args.env_ids[i], i, args.capture_video, run_name, task_id = args.task_id) for i in range(args.num_envs)],
+        [make_env(args.env_ids[i], i, args.capture_video, run_name, task_id = i) for i in range(args.num_envs)],
     )
     envs_eval = gym.vector.SyncVectorEnv(
-        [make_env(args.env_ids[i], i, args.capture_video, run_name, task_id = args.task_id) for i in range(args.num_envs)],
+        [make_env(args.env_ids[i], i, args.capture_video, run_name, task_id = i) for i in range(args.num_envs)],
     )
     assert isinstance(env.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
     # envs_list.append(env)
@@ -412,8 +412,11 @@ if __name__ == "__main__":
                 **logs,
             )
 
+    idx = 0
     for env_id_cur in args.env_ids:
         logs['env_ids'].append(env_id_cur)
+        logs['task_ids'].append(idx)
+        idx += 1
     np.savez(
         f'{args.output_dir}/evaluations.npz',
         **logs,
