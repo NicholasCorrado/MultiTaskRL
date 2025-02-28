@@ -20,12 +20,12 @@ if __name__ == "__main__":
     data_dict = {}
     seaborn.set_theme(style='whitegrid')
 
-    n_rows = 3
+    n_rows = 1
     n_cols = 3
-    fig = plt.figure(figsize=(n_cols*3,n_rows*3))
+    fig = plt.figure(figsize=(27,9))
     i = 1
 
-    env_ids = ['Task_1.0', 'Task_2.0', 'Task_3.0', 'Task_4.0', 'Task_5.0', 'Task_6.0', 'Task_7.0', 'Task_8.0', 'Task_9.0']
+    env_ids = ['BanditEasy', 'BanditHard', 'BanditEasy_BanditHard']
 
     for env_id in env_ids:
         key = f"PPO"
@@ -39,7 +39,7 @@ if __name__ == "__main__":
         i+=1
 
         # Now we can use dot notation which is much cleaner
-        x, y, env_ids = get_data(results_dir, x_name='timestep', y_name='return_avg', filename='evaluations.npz')
+        x, y, env_ids, task_ids = get_data(results_dir, x_name='timestep', y_name='return_avg', filename='evaluations.npz')
         if y is not None:
             data_dict[key] = y
 

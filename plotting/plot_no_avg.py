@@ -65,12 +65,11 @@ if __name__ == "__main__":
 
         # individual record for each environment
         timesteps, returns, env_ids, task_ids = get_data(results_dir, x_name='timestep', y_name='returns')
-        returns = returns[0]
 
         if isinstance(returns, float):
             ax.plot(timesteps, returns, label='Mean Return')
         else:  # Handling return_list
-            num_envs = len(returns[0])  # Number of environments
+            num_envs = len(env_ids)  # Number of environments
             num_timesteps = len(timesteps)  # Number of timesteps
 
             env_returns = [[] for _ in range(num_envs)]
@@ -78,7 +77,7 @@ if __name__ == "__main__":
             # Organizing data per environment
             for t in range(num_timesteps):
                 for env in range(num_envs):
-                    env_returns[env].append(returns[t][env])
+                    env_returns[env].append(np.mean([returns[i][t][env] for i in range(len(returns))]))
 
             # Plot each environment's results
             for env_idx, env_data in enumerate(env_returns):

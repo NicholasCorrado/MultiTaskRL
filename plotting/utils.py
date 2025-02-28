@@ -140,10 +140,7 @@ def get_data(results_dir, x_name='timestep', y_name='returns', lable_name='env_i
             if x is None: x = data_file[x_name]
             y = data_file[y_name]
 
-            if length is None:
-                length = len(y)
-            if len(y) == length:
-                y_list.append(y)
+            y_list.append(y)
             z = data_file[lable_name]
             ids = data_file[id_name]
 

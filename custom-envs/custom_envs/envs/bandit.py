@@ -47,8 +47,8 @@ class BanditEasy(Bandit):
         self.stds = np.random.uniform(0, 1, self.n)
         self.task_id = task_id
 
-        self.means[-1] = 2
-        self.stds[-1] = 0.1
+        self.means[0] = 1
+        self.stds[0] = 0.1
 
 
 class BanditHard(Bandit):
