@@ -5,7 +5,9 @@ tar --exclude="chtc" \
     --exclude="configs" \
     --exclude='local' \
     --exclude="plotting" \
+    --exclude='RESULT' \
     --exclude='results' \
+    --exclude='runs' \
     --exclude='.git' \
     --exclude='.idea'  \
     -czvf ${f}.tar.gz $f
