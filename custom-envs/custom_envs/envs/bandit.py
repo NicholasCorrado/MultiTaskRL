@@ -40,20 +40,21 @@ class Bandit(gym.Env):
 
 
 class BanditEasy(Bandit):
-    def __init__(self, n=100, reward=1, task_id=0):
+    def __init__(self, n=100, task_id=0):
         super().__init__(n=n)
+        self.task_id = task_id
 
         self.means = np.random.uniform(0, 0.7, self.n)
         self.stds = np.random.uniform(0, 1, self.n)
-        self.task_id = task_id
 
         self.means[0] = 1
         self.stds[0] = 0.1
 
 
 class BanditHard(Bandit):
-    def __init__(self, n=100, reward=1, task_id=0):
+    def __init__(self, n=100, task_id=0):
         super().__init__(n=n)
+        self.task_id = task_id
 
         self.means = np.random.uniform(0, 0.9, self.n)
         self.stds = np.random.uniform(0, 1, self.n)
