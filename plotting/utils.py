@@ -109,13 +109,17 @@ import warnings
 
 import numpy as np
 
-def get_data(results_dir, x_name='timestep', y_name='return', filename='evaluations.npz'):
+def get_data(results_dir, x_name='timestep', y_name='returns', lable_name='env_ids', id_name='task_ids', filename='evaluations.npz'):
 
     paths = []
     try:
         for subdir in os.listdir(results_dir):
             if 'run_' in subdir:
-                paths.append(f'{results_dir}/{subdir}/{filename}')
+                cur_path = f'{results_dir}/{subdir}/{filename}'
+                if os.path.isfile(cur_path):
+                    paths.append(cur_path)
+                else:
+                    print (f'No file at {cur_path}!')
     except Exception as e:
         print(e)
 
@@ -129,16 +133,16 @@ def get_data(results_dir, x_name='timestep', y_name='return', filename='evaluati
 
     x = None
     length = None
+    ids = None
 
     for path in paths:
         with np.load(path) as data_file:
             if x is None: x = data_file[x_name]
             y = data_file[y_name]
 
-            if length is None:
-                length = len(y)
-            if len(y) == length:
-                y_list.append(y)
+            y_list.append(y)
+            z = data_file[lable_name]
+            ids = data_file[id_name]
 
-    return x, np.array(y_list)
+    return x, np.array(y_list), z, ids
 

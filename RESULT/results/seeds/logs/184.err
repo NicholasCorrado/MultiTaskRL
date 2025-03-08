@@ -1,0 +1,9 @@
+Cloning into 'MultiTaskRL'...
+fatal: unable to access 'https://github.com/NicholasCorrado/MultiTaskRL.git/': Could not resolve host: github.com
+./job.sh: line 9: cd: MultiTaskRL: No such file or directory
+WARNING: The directory '/.cache/pip' or its parent directory is not owned or is not writable by the current user. The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you should use sudo's -H flag.
+ERROR: custom-envs is not a valid editable requirement. It should either be a path to a local project or a VCS URL (beginning with bzr+http, bzr+https, bzr+ssh, bzr+sftp, bzr+ftp, bzr+lp, bzr+file, git+http, git+https, git+ssh, git+git, git+file, hg+file, hg+http, hg+https, hg+ssh, hg+static-http, svn+ssh, svn+http, svn+https, svn+svn, svn+file).
+python: can't open file '/var/lib/condor/execute/slot1/dir_2158544/ppo_continuous_action.py': [Errno 2] No such file or directory
+tar: results: Cannot stat: No such file or directory
+tar: Exiting with failure status due to previous errors
+mv: cannot create regular file '../results_184.tar.gz': Permission denied

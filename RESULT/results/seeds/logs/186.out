@@ -1,0 +1,7 @@
+python ppo_continuous_action.py --env_id BanditHard-v0 186 86
+Defaulting to user installation because normal site-packages is not writeable
+Obtaining file:///var/lib/condor/execute/slot1/dir_394105/MultiTaskRL/custom-envs
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Installing collected packages: custom-envs
+  Running setup.py develop for custom-envs

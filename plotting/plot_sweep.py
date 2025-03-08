@@ -19,7 +19,7 @@ if __name__ == "__main__":
     from itertools import product
     from collections import namedtuple
 
-    env_ids = ['Swimmer-v5', 'Hopper-v5', 'HalfCheetah-v5', 'Walker2d-v5', 'Ant-v5', 'Humanoid-v5']
+    env_ids = ['BanditHard-v0']
     # Define parameters and their values in a dictionary
     params_dict = {
         # 'env_id': ['Swimmer-v5', 'Hopper-v5', 'HalfCheetah-v5', 'Walker2d-v5', 'Ant-v5', 'Humanoid-v5'],

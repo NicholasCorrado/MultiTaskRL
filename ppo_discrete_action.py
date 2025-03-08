@@ -105,6 +105,7 @@ class Args:
 
 
 def make_env(env_id, idx, capture_video, run_name):
+
     def thunk():
         if capture_video and idx == 0:
             env = gym.make(env_id, render_mode="rgb_array")
@@ -191,6 +192,7 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
     with open(os.path.join(args.output_dir, "config.yml"), "w") as f:
         yaml.dump(args, f, sort_keys=True)
+
 
     # wandb
     if args.track:
