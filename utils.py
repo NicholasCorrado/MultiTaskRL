@@ -25,16 +25,21 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
 
             # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
             obs = next_obs
-            logs_episode['rewards'].append(rewards)
 
             step += 1
+
+            if "final_info" in infos:
+                for info in infos["final_info"]:
+                    if "episode" not in info:
+                        continue
+                    logs['returns'].append(info["episode"]["r"])
 
             if step >= eval_steps:
                 break
         if step >= eval_steps:
             break
 
-        logs['returns'].append(np.sum(logs_episode['rewards']))
+        # logs['returns'].append(np.sum(logs_episode['rewards']))
         try:
             logs['successes'].append(infos['is_success'])
         except:

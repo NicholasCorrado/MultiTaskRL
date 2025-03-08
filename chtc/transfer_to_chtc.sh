@@ -1,3 +1,5 @@
+f=MultiTaskRL
+
 cd ../.. # cd just outside the repo
 tar --exclude="chtc" \
     --exclude="configs" \
@@ -6,7 +8,7 @@ tar --exclude="chtc" \
     --exclude='results' \
     --exclude='.git' \
     --exclude='.idea'  \
-    -czvf MultiTaskRL.tar.gz MultiTaskRL
+    -czvf ${f}.tar.gz $f
     
-scp MultiTaskRL.tar.gz ncorrado@ap2001.chtc.wisc.edu:/staging/ncorrado
-rm MultiTaskRL.tar.gz
+scp ${f}.tar.gz ncorrado@ap2001.chtc.wisc.edu:/staging/ncorrado
+rm ${f}.tar.gz
