@@ -57,6 +57,7 @@ class BanditHard(Bandit):
 
         self.means = np.random.uniform(0, 0.9, self.n)
         self.stds = np.random.uniform(0, 1, self.n)
+        self.task_id = task_id
 
         self.means[-1] = 1
         self.stds[-1] = 1
