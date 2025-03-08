@@ -56,6 +56,7 @@ class Args:
     """Results are saved to {output_rootdir}/ppo/{output_subdir}/run_{run_id}"""
 
     # Evaluation
+    num_evals: int = 100
     eval_freq: int = 10
     """Evaluate policy every eval_freq updates"""
     eval_episodes: int = 20
@@ -72,7 +73,7 @@ class Args:
     """the learning rate of the optimizer"""
     num_envs: int = 2
     """the number of parallel game environments"""
-    num_steps: int = 128
+    num_steps: int = 256
     """the number of steps to run in each environment per policy rollout"""
     anneal_lr: bool = True
     """Toggle learning rate annealing for policy and value networks"""
@@ -80,9 +81,9 @@ class Args:
     """the discount factor gamma"""
     gae_lambda: float = 0.95
     """the lambda for the general advantage estimation"""
-    num_minibatches: int = 4
+    num_minibatches: int = 10
     """the number of mini-batches"""
-    update_epochs: int = 4
+    update_epochs: int = 32
     """the K epochs to update the policy"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
@@ -176,6 +177,7 @@ if __name__ == "__main__":
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
     args.env_id = env_id_helper(env_ids = args.env_ids)
+    # args.eval_freq = max(args.num_iterations // args.num_evals, 1)
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
 
     # Seeding
@@ -291,7 +293,7 @@ if __name__ == "__main__":
             if "final_info" in infos:
                 for info in infos["final_info"]:
                     if info and "episode" in info:
-                        print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
+                        # print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                         writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
 
@@ -417,6 +419,7 @@ if __name__ == "__main__":
         logs['env_ids'].append(env_id_cur)
         logs['task_ids'].append(idx)
         idx += 1
+    logs['args'].append(args)
     np.savez(
         f'{args.output_dir}/evaluations.npz',
         **logs,

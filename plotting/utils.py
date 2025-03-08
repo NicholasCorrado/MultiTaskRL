@@ -111,6 +111,7 @@ import numpy as np
 
 def get_data(results_dir, x_name='timestep', y_name='returns', lable_name='env_ids', id_name='task_ids', filename='evaluations.npz'):
 
+    print (results_dir)
     paths = []
     try:
         for subdir in os.listdir(results_dir):

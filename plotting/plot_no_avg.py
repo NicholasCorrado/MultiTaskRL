@@ -1,4 +1,5 @@
 import os
+from logging import exception
 
 import numpy as np
 import seaborn
@@ -25,10 +26,13 @@ if __name__ == "__main__":
     fig = plt.figure(figsize=(27,9))
     i = 1
 
-    env_ids = ['BanditEasy', 'BanditHard', 'BanditEasy_BanditHard']
+    env_id_list = ['BanditEasy', 'BanditHard', 'BanditEasy_BanditHard']
 
-    for env_id in env_ids:
-        key = f"PPO"
+    for env_id in env_id_list:
+        # try:
+            # Now we can use dot notation which is much cleaner
+
+        key = f"PPO Average"
         results_dir = f"../results/{env_id}/ppo/"
         if not os.path.exists(results_dir):
             print (f'Task {env_id} does not have result!')
@@ -38,50 +42,71 @@ if __name__ == "__main__":
         ax.set_title(env_id)
         i+=1
 
-        # Now we can use dot notation which is much cleaner
         x, y, env_ids, task_ids = get_data(results_dir, x_name='timestep', y_name='return_avg', filename='evaluations.npz')
-        if y is not None:
-            data_dict[key] = y
 
-        results_dict = {algorithm: score for algorithm, score in data_dict.items()}
-        aggr_func = lambda scores: np.array(
-            [metrics.aggregate_mean([scores[..., frame]]) for frame in range(scores.shape[-1])])
-        scores, cis = rly.get_interval_estimates(results_dict, aggr_func, reps=1000)
+        if len(env_ids) > 1:
 
-        plot_sample_efficiency_curve(
-            frames=x,
-            point_estimates=scores,
-            interval_estimates=cis,
-            ax=ax,
-            algorithms=None,
-            xlabel='Timestep',
-            ylabel=f'Return',
-            # title=f'{env_id}',
-            labelsize='large',
-            ticklabelsize='large',
-        )
+            data_dict = {}
+
+            if y is not None:
+                data_dict[key] = y
+
+            results_dict = {algorithm: score for algorithm, score in data_dict.items()}
+            aggr_func = lambda scores: np.array(
+                [metrics.aggregate_mean([scores[..., frame]]) for frame in range(scores.shape[-1])])
+            scores, cis = rly.get_interval_estimates(results_dict, aggr_func, reps=1000)
+
+            plot_sample_efficiency_curve(
+                frames=x,
+                point_estimates=scores,
+                interval_estimates=cis,
+                ax=ax,
+                algorithms=None,
+                xlabel='Timestep',
+                ylabel=f'Return',
+                # title=f'{env_id}',
+                labelsize='large',
+                ticklabelsize='large',
+            )
+
+        data_dict = {}
 
         plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
 
-        # individual record for each environment
-        timesteps, returns, env_ids, task_ids = get_data(results_dir, x_name='timestep', y_name='returns')
+        if y is None:
+            continue
 
-        if isinstance(returns, float):
-            ax.plot(timesteps, returns, label='Mean Return')
-        else:  # Handling return_list
-            num_envs = len(env_ids)  # Number of environments
-            num_timesteps = len(timesteps)  # Number of timesteps
+        x, y, env_ids, task_ids = get_data(results_dir, x_name='timestep', y_name='returns',
+                                           filename='evaluations.npz')
+        if y is not None:
+            data_dict[key] = y
 
-            env_returns = [[] for _ in range(num_envs)]
+        num_envs = len(env_ids)  # Number of environments
+        num_timesteps = len(x)  # Number of x
 
-            # Organizing data per environment
-            for t in range(num_timesteps):
-                for env in range(num_envs):
-                    env_returns[env].append(np.mean([returns[i][t][env] for i in range(len(returns))]))
+        env_returns = [[] for _ in range(num_envs)]
+        env_returns_avged = [[] for _ in range(num_envs)]
 
-            # Plot each environment's results
-            for env_idx, env_data in enumerate(env_returns):
-                ax.plot(timesteps, env_data, label=f'Task {task_ids[env_idx]}: {env_ids[env_idx]}',linewidth=1.0)
+        # Organizing data per environment
+        for t in range(num_timesteps):
+            for env in range(num_envs):
+                env_returns[env].append([y[i][t][env] for i in range(len(y))])
+                env_returns_avged[env].append(np.mean([y[i][t][env] for i in range(len(y))]))
+
+        # Plot each environment's results
+        for env_idx in range(len(env_returns)):
+            key = f"PPO Task {task_ids[env_idx]}: {env_ids[env_idx]}"
+
+            data_dict = {}
+            data_dict[key] = np.array(env_returns[env_idx]).transpose()
+            results_dict = {algorithm: score for algorithm, score in data_dict.items()}
+
+            aggr_func = lambda scores: np.array(
+                [metrics.aggregate_mean([scores[..., frame]]) for frame in range(scores.shape[-1])])
+            scores, cis = rly.get_interval_estimates(results_dict, aggr_func, reps=1000)
+
+            ax.plot(x, scores[key], label = key, linewidth=1.0)
+            ax.fill_between(x, cis[key][0], cis[key][1], alpha = 0.2)
 
         # Set log scale
         # plt.xscale('log')
