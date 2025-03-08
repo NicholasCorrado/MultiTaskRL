@@ -1,9 +1,0 @@
-python ppo_continuous_action.py --env_id Hopper-v5 --learning_rate 0.0003 --num_steps 8192 --output_subdir lr_0.0003/ns_8192 --total_timesteps 1000000 2 0
-results/
-results/Hopper-v5/
-results/Hopper-v5/ppo/
-results/Hopper-v5/ppo/lr_0.0003/
-results/Hopper-v5/ppo/lr_0.0003/ns_8192/
-results/Hopper-v5/ppo/lr_0.0003/ns_8192/run_0/
-results/Hopper-v5/ppo/lr_0.0003/ns_8192/run_0/evaluations.npz
-results/Hopper-v5/ppo/lr_0.0003/ns_8192/run_0/config.yml
