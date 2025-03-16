@@ -197,7 +197,7 @@ if __name__ == "__main__":
             torch.backends.cudnn.deterministic = args.torch_deterministic
 
     # Output path
-    args.output_dir = f"{args.output_rootdir}/{args.env_id}/ppo/{args.output_subdir}"
+    args.output_dir = f"{args.output_rootdir}/{args.env_id}/w1_{args.w_1}__w2_{args.w_2}/ppo/{args.output_subdir}"
     if args.run_id is not None:
         args.output_dir += f"/run_{args.run_id}"
     else:
