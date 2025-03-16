@@ -108,6 +108,9 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 
+    w_1: float = 1.0
+    w_2: float = 0.0
+
 
 def make_env(env_id, idx, capture_video, run_name, task_id = 0.0):
 
@@ -178,7 +181,7 @@ if __name__ == "__main__":
     args.num_iterations = args.total_timesteps // args.batch_size
     args.env_id = env_id_helper(env_ids = args.env_ids)
     # args.eval_freq = max(args.num_iterations // args.num_evals, 1)
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}__w1{args.w_1}__w2{args.w_2}"
 
     # Seeding
     if args.seed is None:
@@ -341,6 +344,12 @@ if __name__ == "__main__":
                     clipfracs += [((ratio - 1.0).abs() > args.clip_coef).float().mean().item()]
 
                 mb_advantages = b_advantages[mb_inds]
+                for (i, idx) in enumerate(mb_inds):
+                    mb_advantages[i] = b_advantages[idx]
+                    if idx < args.num_steps:
+                        mb_advantages[i] *= args.w_1
+                    else:
+                        mb_advantages[i] *= args.w_2
                 if args.norm_adv:
                     mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
 
@@ -395,6 +404,7 @@ if __name__ == "__main__":
 
         if iteration % args.eval_freq == 0:
             returns, return_avg, return_std, success_avg, success_std = simulate(env=envs_eval, actor=agent, eval_episodes=args.eval_episodes)
+            returns = returns[0]
 
             print(f"Eval num_timesteps={global_step}")
             print(f"episode_return={return_avg:.2f} +/- {return_std:.2f}")
