@@ -26,7 +26,7 @@ if __name__ == "__main__":
     fig = plt.figure(figsize=(27,9))
     i = 1
 
-    env_id_list = ['BanditEasy', 'BanditHard', 'BanditEasy_BanditHard']
+    env_id_list = ['BanditEasy', 'BanditEasy-v0_BanditHard-v0', 'BanditEasy_BanditHard']
 
     for env_id in env_id_list:
         # try:

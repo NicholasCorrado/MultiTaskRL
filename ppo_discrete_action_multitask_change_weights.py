@@ -75,7 +75,7 @@ class Args:
     """the number of parallel game environments"""
     num_steps: int = 256
     """the number of steps to run in each environment per policy rollout"""
-    anneal_lr: bool = False
+    anneal_lr: bool = True
     """Toggle learning rate annealing for policy and value networks"""
     gamma: float = 0.99
     """the discount factor gamma"""
@@ -108,11 +108,10 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 
-    testing: str = "off"
+    # weights
+    w_learning_rate: float = 1.0
 
-    # list of weights
-    w: list[float] = None
-    """weights for different environments"""
+    testing: str = "off"
 
 
 def make_env(env_id, idx, capture_video, run_name, task_id = 0.0):
@@ -177,6 +176,30 @@ def env_id_helper(env_ids = ("BanditEasy-v0", "BanditHard-v0")):
     return long_env_id
 
 
+def exponentiated_gradient_ascent_step(w, returns, returns_ref, learning_rate=1.0):
+    """
+    Perform one step of exponentiated gradient ascent on |returns - 1|.
+
+    Args:
+        w (torch.Tensor): Task weights.
+        returns (torch.Tensor): Returns associated with each task.
+        returns_ref (torch.Tensor): Reference returns associated with each task.
+        learning_rate (float): Learning rate.
+
+    Returns:
+        torch.Tensor: Updated task weights after one step of exponentiated gradient ascent.
+    """
+    diff = torch.max(returns_ref - returns, torch.zeros_like(returns))
+
+    # Exponentiated gradient update
+    w_new = w * torch.exp(learning_rate * diff)
+
+    # Normalize to ensure weights sum to 1
+    w_new = w_new / w_new.sum()
+
+    return w_new
+
+
 if __name__ == "__main__":
     args = tyro.cli(Args)
     args.num_envs = len(args.env_ids)
@@ -185,7 +208,8 @@ if __name__ == "__main__":
     args.num_iterations = args.total_timesteps // (args.batch_size * args.num_envs)
     args.env_id = env_id_helper(env_ids = args.env_ids)
     # args.eval_freq = max(args.num_iterations // args.num_evals, 1)
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}__w_{args.w}"
+    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}__{args.w_learning_rate}"
+    w = torch.ones(args.num_envs) / args.num_envs
 
     # Seeding
     if args.seed is None:
@@ -201,7 +225,7 @@ if __name__ == "__main__":
             torch.backends.cudnn.deterministic = args.torch_deterministic
 
     # Output path
-    args.output_dir = f"{args.output_rootdir}/{args.env_id}/w_{args.w}/ppo/{args.output_subdir}"
+    args.output_dir = f"{args.output_rootdir}/{args.env_id}/w_lr={args.w_learning_rate}/ppo/{args.output_subdir}"
     if args.testing == "on":
         args.output_dir = f"test_results/{args.output_dir}"
     if args.run_id is not None:
@@ -322,9 +346,10 @@ if __name__ == "__main__":
                 advantages[t] = lastgaelam = delta + args.gamma * args.gae_lambda * nextnonterminal * lastgaelam
             returns = advantages + values
 
-        # Optimizing the policy and value network
+        # Optimizing the policy, value network and weights
         b_inds = np.arange(args.batch_size)
         clipfracs = []
+        w = exponentiated_gradient_ascent_step(w, returns.mean(dim=0), torch.ones(args.num_envs), learning_rate=args.w_learning_rate)
         for epoch in range(args.update_epochs):
             np.random.shuffle(b_inds)
             for start in range(0, args.batch_size, args.minibatch_size):
@@ -377,7 +402,7 @@ if __name__ == "__main__":
                         v_loss = 0.5 * v_loss_before_mean.mean()
 
                     entropy_loss = entropy.mean()
-                    loss += (pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef) * args.w[env_idx]
+                    loss += (pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef) * w[env_idx]
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -412,14 +437,15 @@ if __name__ == "__main__":
             print(f"Eval num_timesteps={global_step}")
             print(f"episode_return={return_avg:.2f} +/- {return_std:.2f}")
             print(f"episode_success={success_avg:.2f} +/- {success_std:.2f}")
-
             print(f"results_for_each_envs={returns}")
+            print(f"weights_for_each_envs={w}")
 
             logs['timestep'].append(global_step)
             logs['returns'].append(returns) # individual results for each environments in this eval
             logs['return_avg'].append(return_avg) # average result in this eval
             logs['success_rate'].append(success_avg)
             logs['update'].append(update_count)
+            logs['weights'].append(w)
 
             np.savez(
                 f'{args.output_dir}/evaluations.npz',
