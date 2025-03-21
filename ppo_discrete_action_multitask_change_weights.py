@@ -108,8 +108,10 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 
-    # weights
+    # weights for training
     w_learning_rate: float = 1.0
+    w_upper_limit: float = 0.99
+    w_eps: float = 0.1
 
     testing: str = "off"
 
@@ -176,7 +178,7 @@ def env_id_helper(env_ids = ("BanditEasy-v0", "BanditHard-v0")):
     return long_env_id
 
 
-def exponentiated_gradient_ascent_step(w, returns, returns_ref, learning_rate=1.0):
+def exponentiated_gradient_ascent_step(w, returns, returns_ref, learning_rate=1.0, eps=0.1):
     """
     Perform one step of exponentiated gradient ascent on |returns - 1|.
 
@@ -197,6 +199,16 @@ def exponentiated_gradient_ascent_step(w, returns, returns_ref, learning_rate=1.
     # Normalize to ensure weights sum to 1
     w_new = w_new / w_new.sum()
 
+    w_uniform = 1/len(w_new) * np.ones(len(w_new))
+
+    w_new = (1 - eps) * w_new + eps * w_uniform
+
+    if torch.max(w_new) > args.w_upper_limit:
+        idx = torch.argmax(w_new)
+        x = (w_new[idx] - args.w_upper_limit) / (args.num_envs - 1)
+        w_new[idx] += x * len(w_new)
+        w_new += torch.ones_like(w_new) * x
+
     return w_new
 
 
@@ -209,6 +221,7 @@ if __name__ == "__main__":
     args.env_id = env_id_helper(env_ids = args.env_ids)
     # args.eval_freq = max(args.num_iterations // args.num_evals, 1)
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}__{args.w_learning_rate}"
+
     w = torch.ones(args.num_envs) / args.num_envs
 
     # Seeding
@@ -349,7 +362,7 @@ if __name__ == "__main__":
         # Optimizing the policy, value network and weights
         b_inds = np.arange(args.batch_size)
         clipfracs = []
-        w = exponentiated_gradient_ascent_step(w, returns.mean(dim=0), torch.ones(args.num_envs), learning_rate=args.w_learning_rate)
+        w = exponentiated_gradient_ascent_step(w, returns.mean(dim=0), torch.ones(args.num_envs), learning_rate=args.w_learning_rate, eps = args.w_eps)
         for epoch in range(args.update_epochs):
             np.random.shuffle(b_inds)
             for start in range(0, args.batch_size, args.minibatch_size):
