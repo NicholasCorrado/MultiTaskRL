@@ -108,6 +108,10 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 
+    # output dir setting
+    lr_in_paths: bool = False
+    """save learning rate in paths"""
+
 
 def make_env(env_id, idx, capture_video, run_name, task_id = 0.0):
 
@@ -194,7 +198,10 @@ if __name__ == "__main__":
             torch.backends.cudnn.deterministic = args.torch_deterministic
 
     # Output path
-    args.output_dir = f"{args.output_rootdir}/{args.env_id}/ppo/{args.output_subdir}"
+    if args.lr_in_paths:
+        args.output_dir = f"{args.output_rootdir}/{args.env_id}/learning_rate={args.learning_rate}/ppo/{args.output_subdir}"
+    else:
+        args.output_dir = f"{args.output_rootdir}/{args.env_id}/ppo/{args.output_subdir}"
     if args.run_id is not None:
         args.output_dir += f"/run_{args.run_id}"
     else:
