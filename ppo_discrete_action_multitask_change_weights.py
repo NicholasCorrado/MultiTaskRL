@@ -69,13 +69,13 @@ class Args:
     """the complete id of the environment"""
     total_timesteps: int = 500000
     """total timesteps of the experiments"""
-    learning_rate: float = 3e-4
+    learning_rate: float = 3e-5
     """the learning rate of the optimizer"""
     num_envs: int = 2
     """the number of parallel game environments"""
     num_steps: int = 256
     """the number of steps to run in each environment per policy rollout"""
-    anneal_lr: bool = True
+    anneal_lr: bool = False
     """Toggle learning rate annealing for policy and value networks"""
     gamma: float = 0.99
     """the discount factor gamma"""
@@ -203,11 +203,11 @@ def exponentiated_gradient_ascent_step(w, returns, returns_ref, learning_rate=1.
 
     w_new = (1 - eps) * w_new + eps * w_uniform
 
-    if torch.max(w_new) > args.w_upper_limit:
-        idx = torch.argmax(w_new)
-        x = (w_new[idx] - args.w_upper_limit) / (args.num_envs - 1)
-        w_new[idx] += x * len(w_new)
-        w_new += torch.ones_like(w_new) * x
+    # if torch.max(w_new) > args.w_upper_limit:
+    #     idx = torch.argmax(w_new)
+    #     x = (w_new[idx] - args.w_upper_limit) / (args.num_envs - 1)
+    #     w_new[idx] += x * len(w_new)
+    #     w_new += torch.ones_like(w_new) * x
 
     return w_new
 
