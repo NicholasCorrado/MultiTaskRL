@@ -10,8 +10,9 @@ class Bandit(gym.Env):
 
         self.n = n
         self.action_space = gym.spaces.Discrete(self.n)
-        self.observation_space = gym.spaces.Box(low=np.array([0, 0], np.float32), high=np.array([np.inf, 1], np.float32),)
-        self.task_id = task_id
+        self.observation_space = gym.spaces.Box(low=np.array([0, 0, 0], np.float32), high=np.array([np.inf, np.inf, 1], np.float32),)
+        self.task_id_easy = 0
+        self.task_id_hard = 0
         super().__init__()
 
         self.means = np.random.uniform(0, 0.9, self.n)
@@ -28,7 +29,7 @@ class Bandit(gym.Env):
         terminated = True
         truncated = False
         info = {}
-        return np.array([self.task_id] + [1]), reward, terminated, truncated, info
+        return np.array([self.task_id_easy] + [self.task_id_hard] + [1]), reward, terminated, truncated, info
 
     def reset(
         self,
@@ -36,13 +37,14 @@ class Bandit(gym.Env):
         seed: Optional[int] = None,
         options: Optional[dict] = None,
     ):
-        return np.array([self.task_id] + [1]), {}
+        return np.array([self.task_id_easy] + [self.task_id_hard] + [1]), {}
 
 
 class BanditEasy(Bandit):
     def __init__(self, n=50, task_id=0):
         super().__init__(n=n)
-        self.task_id = task_id
+        self.task_id_easy = 1
+        self.task_id_hard = 0
 
         self.means = np.random.uniform(0, 0.7, self.n)
         self.stds = np.random.uniform(0, 1, self.n)
@@ -54,7 +56,8 @@ class BanditEasy(Bandit):
 class BanditHard(Bandit):
     def __init__(self, n=50, task_id=0):
         super().__init__(n=n)
-        self.task_id = task_id
+        self.task_id_easy = 0
+        self.task_id_hard = 1
 
         self.means = np.random.uniform(0, 0.9, self.n)
         self.stds = np.random.uniform(0, 1, self.n)

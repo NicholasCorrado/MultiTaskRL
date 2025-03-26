@@ -111,7 +111,7 @@ class Args:
     # weights for training
     w_learning_rate: float = 1.0
     w_upper_limit: float = 0.99
-    w_eps: float = 0.1
+    w_eps: float = 1e-3
 
     testing: str = "off"
 
