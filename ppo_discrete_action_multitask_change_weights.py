@@ -238,7 +238,7 @@ if __name__ == "__main__":
             torch.backends.cudnn.deterministic = args.torch_deterministic
 
     # Output path
-    args.output_dir = f"{args.output_rootdir}/{args.env_id}/w_lr={args.w_learning_rate}/ppo/{args.output_subdir}"
+    args.output_dir = f"{args.output_rootdir}/{args.env_id}/learning_rate={args.learning_rate}/w_lr={args.w_learning_rate}/ppo/{args.output_subdir}"
     if args.testing == "on":
         args.output_dir = f"test_results/{args.output_dir}"
     if args.run_id is not None:
