@@ -41,7 +41,7 @@ class Bandit(gym.Env):
 
 
 class BanditEasy(Bandit):
-    def __init__(self, n=100, task_id=0):
+    def __init__(self, n=200, task_id=0):
         super().__init__(n=n)
         self.task_id_easy = 1
         self.task_id_hard = 0
@@ -54,7 +54,7 @@ class BanditEasy(Bandit):
 
 
 class BanditHard(Bandit):
-    def __init__(self, n=100, task_id=0):
+    def __init__(self, n=200, task_id=0):
         super().__init__(n=n)
         self.task_id_easy = 0
         self.task_id_hard = 1
