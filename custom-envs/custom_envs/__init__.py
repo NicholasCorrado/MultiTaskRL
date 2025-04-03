@@ -24,3 +24,15 @@ register(
     entry_point="custom_envs.envs.bandit:BanditHard",
     max_episode_steps=1,
 )
+
+register(
+    id="GridWorldLinearEasy-v0",
+    entry_point="custom_envs.envs.bandit:BanditHard",
+    max_episode_steps=1,
+)
+
+register(
+    id="GridWorldLinearHard-v0",
+    entry_point="custom_envs.envs.bandit:BanditHard",
+    max_episode_steps=1,
+)
