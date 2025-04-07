@@ -1,7 +1,8 @@
 # Python build file
 
 universe = container
-container_image = docker://nicholascorrado/multitask-rl:chtc
+container_image = docker://python:3.11-slim
+# container_image = docker://nicholascorrado/multitask-rl:chtc
 
 executable = job.sh
 initial_dir = $(results_dir)
