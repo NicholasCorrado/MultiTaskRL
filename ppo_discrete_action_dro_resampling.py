@@ -66,6 +66,9 @@ class Args:
     dro_learning_rate: float = 1.0
     dro_eps: float = 0.01
 
+    linear: bool = True
+    """Use a linear actor/critic network"""
+
     # Algorithm specific arguments
     env_ids: List[str] = field(default_factory=lambda: [f"Bandit{i}-v0" for i in range(1, 5+1)])
     # env_ids: List[str] = field(default_factory=lambda: [f"BanditEasy-v0", "BanditHard-v0"])
@@ -147,11 +150,6 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
         logs['returns'].append(np.sum(logs_episode['rewards']))
         logs['successes'].append(infos['final_info'][0]['is_success'])
 
-        # try:
-        #     logs['successes'].append(infos['is_success'])
-        # except:
-        #     logs['successes'].append(False)
-
     return_avg = np.mean(logs['returns'])
     return_std = np.std(logs['returns'])
     success_avg = np.mean(logs['successes'])
@@ -179,22 +177,32 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 
 class Agent(nn.Module):
-    def __init__(self, envs):
+    def __init__(self, envs, linear=True):
         super().__init__()
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1), std=0.01),
-            # nn.Tanh(),
-            # layer_init(nn.Linear(64, 64)),
-            # nn.Tanh(),
-            # layer_init(nn.Linear(64, 1), std=0.01),
-        )
-        self.actor = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n), std=0.01),
-            # nn.Tanh(),
-            # layer_init(nn.Linear(64, 64)),
-            # nn.Tanh(),
-            # layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01),
-        )
+
+        if linear:
+            self.critic = nn.Sequential(
+                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1), std=0.01),
+            )
+            self.actor = nn.Sequential(
+                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n), std=0.01),
+            )
+
+        else:
+            self.critic = nn.Sequential(
+                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1), std=0.01),
+                nn.Tanh(),
+                layer_init(nn.Linear(64, 64)),
+                nn.Tanh(),
+                layer_init(nn.Linear(64, 1), std=0.01),
+            )
+            self.actor = nn.Sequential(
+                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n), std=0.01),
+                nn.Tanh(),
+                layer_init(nn.Linear(64, 64)),
+                nn.Tanh(),
+                layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01),
+            )
 
     def get_value(self, x):
         return self.critic(x)
@@ -221,15 +229,10 @@ def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, lear
     # Normalize to ensure weights sum to 1
     w_new = w_new / w_new.sum()
 
+    # Smoothing to prevent weights form getting too close to 0
     w_uniform = 1/len(w_new) * np.ones(len(w_new))
-
     w_new = (1 - eps) * w_new + eps * w_uniform
 
-    # if torch.max(w_new) > args.w_upper_limit:
-    #     idx = torch.argmax(w_new)
-    #     x = (w_new[idx] - args.w_upper_limit) / (args.num_envs - 1)
-    #     w_new[idx] += x * len(w_new)
-    #     w_new += torch.ones_like(w_new) * x
 
     return w_new
 
@@ -317,7 +320,7 @@ if __name__ == "__main__":
         task_probs = np.ones(num_tasks) / num_tasks
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
-    agent = Agent(envs).to(device)
+    agent = Agent(envs, linear=args.linear).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
@@ -355,22 +358,12 @@ if __name__ == "__main__":
     next_done = next_done_list[task_id]
 
     for iteration in range(1, args.num_iterations + 1):
-        # print(next_obs_list)
-
-        # if not first_reset[task_id]:
-        #     next_obs, _ = envs.reset(seed=args.seed)
-        #     next_obs = torch.Tensor(next_obs).to(device)
-        #     next_done = torch.zeros(args.num_envs).to(device)
-        #     first_reset[task_id] = True
-        # Annealing the rate if instructed to do so.
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
             lrnow = frac * args.learning_rate
             optimizer.param_groups[0]["lr"] = lrnow
 
         for step in range(0, args.num_steps):
-
-
             global_step += args.num_envs
             obs[step] = next_obs
             dones[step] = next_done
@@ -498,7 +491,6 @@ if __name__ == "__main__":
         explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
 
         update_count += 1
-
 
         # print(task_probs)
 
