@@ -23,10 +23,16 @@ if __name__ == "__main__":
 
     n_rows = 1
     n_cols = 3
-    fig = plt.figure(figsize=(27,9))
+    fig = plt.figure(figsize=(n_cols * 9,n_rows * 9))
     i = 1
 
-    env_id_list = ['BanditEasy', 'BanditEasy-v0_BanditHard-v0', 'BanditEasy_BanditHard']
+    env_id_list = ['task1/results/BanditEasy_BanditHard/learning_rate=0.001',
+                   'task1/results/BanditEasy_BanditHard/learning_rate=0.0003',
+                   'task1/results/BanditEasy_BanditHard/learning_rate=0.0001',
+                   'task0/results/BanditHard/learning_rate=0.001',
+                   'task0/results/BanditHard/learning_rate=0.0003',
+                   'task0/results/BanditHard/learning_rate=0.0001',
+                   ]
 
     for env_id in env_id_list:
         # try:
@@ -41,6 +47,8 @@ if __name__ == "__main__":
         ax = plt.subplot(n_rows, n_cols, i)
         ax.set_title(env_id)
         i+=1
+        if i > 3:
+            i = 1
 
         x, y, env_ids, task_ids = get_data(results_dir, x_name='timestep', y_name='return_avg', filename='evaluations.npz')
 
@@ -112,6 +120,7 @@ if __name__ == "__main__":
         # plt.xscale('log')
         # plt.yscale('log')
         ax.legend(loc="upper left", fontsize="small")
+        ax.set_ylim(bottom=0.4, top=1.1)
 
     plt.tight_layout()
 

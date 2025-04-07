@@ -73,7 +73,7 @@ class Args:
     """the learning rate of the optimizer"""
     num_envs: int = 2
     """the number of parallel game environments"""
-    num_steps: int = 256
+    num_steps: int = 64
     """the number of steps to run in each environment per policy rollout"""
     anneal_lr: bool = False
     """Toggle learning rate annealing for policy and value networks"""
@@ -112,15 +112,25 @@ class Args:
     lr_in_paths: bool = False
     """save learning rate in paths"""
 
+    # bandit environment setting
+    bandit_num_actions: int = None
+
+
 
 def make_env(env_id, idx, capture_video, run_name, task_id = 0.0):
 
     def thunk():
         if capture_video and idx == 0:
-            env = gym.make(env_id, render_mode="rgb_array", task_id = task_id)
+            if args.bandit_num_actions is None:
+                env = gym.make(env_id, render_mode="rgb_array", task_id = task_id)
+            else:
+                env = gym.make(env_id, render_mode="rgb_array", task_id = task_id, n = args.bandit_num_actions)
             env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         else:
-            env = gym.make(env_id, task_id = task_id)
+            if args.bandit_num_actions is None:
+                env = gym.make(env_id, task_id = task_id)
+            else:
+                env = gym.make(env_id, task_id = task_id, n = args.bandit_num_actions)
         env = gym.wrappers.RecordEpisodeStatistics(env)
         return env
 
