@@ -24,3 +24,10 @@ register(
     entry_point="custom_envs.envs.bandit:BanditHard",
     max_episode_steps=1,
 )
+
+for i in range(1, 6):
+    register(
+        id=f"Bandit{i}-v0",
+        entry_point=f"custom_envs.envs.bandit:Bandit{i}",
+        max_episode_steps=1,
+    )
