@@ -1,0 +1,6 @@
+0.3,0.1,python ppo_discrete_action_multitask.py --lr_in_paths --total_timesteps 1000000 --env_ids BanditEasy --learning_rate 1e-3 --update_epochs 4 --num_minibatches 4
+0.3,0.1,python ppo_discrete_action_multitask.py --lr_in_paths --total_timesteps 1000000 --env_ids BanditHard --learning_rate 1e-3 --update_epochs 4 --num_minibatches 4
+0.3,0.1,python ppo_discrete_action_multitask.py --lr_in_paths --total_timesteps 1000000 --env_ids BanditEasy --learning_rate 3e-4 --update_epochs 4 --num_minibatches 4
+0.3,0.1,python ppo_discrete_action_multitask.py --lr_in_paths --total_timesteps 1000000 --env_ids BanditHard --learning_rate 3e-4 --update_epochs 4 --num_minibatches 4
+0.3,0.1,python ppo_discrete_action_multitask.py --lr_in_paths --total_timesteps 1000000 --env_ids BanditEasy --learning_rate 1e-4 --update_epochs 4 --num_minibatches 4
+0.3,0.1,python ppo_discrete_action_multitask.py --lr_in_paths --total_timesteps 1000000 --env_ids BanditHard --learning_rate 1e-4 --update_epochs 4 --num_minibatches 4

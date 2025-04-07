@@ -1,0 +1,6 @@
+0.3,0.1,python ppo_discrete_action_multitask_fixedweight.py --total_timesteps 1000000 --w 0.0 1.0
+0.3,0.1,python ppo_discrete_action_multitask_fixedweight.py --total_timesteps 1000000 --w 1.0 0.0
+0.3,0.1,python ppo_discrete_action_multitask_fixedweight.py --total_timesteps 1000000 --w 0.2 0.8
+0.3,0.1,python ppo_discrete_action_multitask_fixedweight.py --total_timesteps 1000000 --w 0.4 0.6
+0.3,0.1,python ppo_discrete_action_multitask_fixedweight.py --total_timesteps 1000000 --w 0.6 0.4
+0.3,0.1,python ppo_discrete_action_multitask_fixedweight.py --total_timesteps 1000000 --w 0.8 0.2
