@@ -318,6 +318,9 @@ if __name__ == "__main__":
         task_probs = np.array(args.task_probs_init)
     else:
         task_probs = np.ones(num_tasks) / num_tasks
+
+    task_weights = np.ones(num_tasks) / num_tasks
+
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
     agent = Agent(envs, linear=args.linear).to(device)
@@ -398,6 +401,7 @@ if __name__ == "__main__":
                         next_obs = next_obs_list[task_id]
                         next_done = next_done_list[task_id]
 
+            # Update task sampling probabilities
             if args.dro and global_step % args.dro_num_steps == 0:
                 # training_returns_avg = []
                 training_returns_avg = np.array([np.mean(training_returns[i]) for i in range(num_tasks)])
