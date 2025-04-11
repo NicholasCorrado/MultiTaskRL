@@ -70,6 +70,7 @@ class Args:
     """using resampling for DRO"""
     dro_reweighting: bool = False
     """using reweighting for DRO"""
+    dro_success_ref: bool = False
 
     linear: bool = True
     """Use a linear actor/critic network"""
@@ -403,7 +404,10 @@ if __name__ == "__main__":
                         # writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         # writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
                         # training_returns[task_id].append(np.mean(info["episode"]["r"]))
-                        training_returns[task_id].append(np.mean(info['is_success']))
+                        if args.dro_success_ref:
+                            training_returns[task_id].append(np.mean(info['is_success']))
+                        else:
+                            training_returns[task_id].append(np.mean(info["episode"]["r"]))
 
                         task_id = np.random.choice(np.arange(num_tasks), p=task_probs)
                         envs = envs_list[task_id]
