@@ -597,6 +597,7 @@ if __name__ == "__main__":
                 print()
 
                 logs[f'task_probs_{j}'].append(task_probs[j])
+                logs[f'task_weights_{j}'].append(task_weights[j])
                 logs[f'return_{j}'].append(return_avg)
                 logs[f'success_rate_{j}'].append(success_avg)
 
