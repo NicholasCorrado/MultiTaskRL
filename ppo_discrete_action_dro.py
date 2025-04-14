@@ -70,7 +70,7 @@ class Args:
     """using resampling for DRO"""
     dro_reweighting: bool = False
     """using reweighting for DRO"""
-    dro_return_ref: bool = True
+    dro_return_ref: bool = False
     """use return reference for dro"""
     dro_success_ref: bool = False
     """use success reference for dro"""
@@ -258,6 +258,21 @@ if __name__ == "__main__":
         env_name += env_id + "_"
     env_name = env_name[:-1]
 
+    if not args.dro_return_ref and not args.dro_success_ref:
+        args.dro_success_ref = True
+    dro_ref_type, dro_data_type = "", ""
+    if args.dro_resampling:
+        dro_data_type = "resampling"
+    elif args.dro_reweighting:
+        dro_data_type = "reweighting"
+    else:
+        dro_data_type = "no_dro"
+    if args.dro_success_ref:
+        dro_type = "success_ref"
+    else:
+        dro_type = "return_ref"
+
+
     run_name = f"{env_name}__{args.exp_name}__{args.seed}__{int(time.time())}"
 
     # Seeding
@@ -274,7 +289,7 @@ if __name__ == "__main__":
             torch.backends.cudnn.deterministic = args.torch_deterministic
 
     # Output path
-    args.output_dir = f"{args.output_rootdir}/{env_name}/ppo/learning_rate={args.learning_rate}/{args.output_subdir}"
+    args.output_dir = f"{args.output_rootdir}/{env_name}/ppo/{dro_data_type}/{dro_ref_type}/{args.output_subdir}"
     if args.run_id is not None:
         args.output_dir += f"/run_{args.run_id}"
     else:
