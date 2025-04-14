@@ -70,6 +70,10 @@ class Args:
     """using resampling for DRO"""
     dro_reweighting: bool = False
     """using reweighting for DRO"""
+    dro_return_ref: bool = True
+    """use return reference for dro"""
+    dro_success_ref: bool = False
+    """use success reference for dro"""
 
     linear: bool = True
     """Use a linear actor/critic network"""
@@ -415,17 +419,25 @@ if __name__ == "__main__":
                 # training_returns_avg = []
                 training_returns_avg = np.array([np.mean(training_returns[i]) for i in range(num_tasks)])
                 training_returns_avg = np.nan_to_num(training_returns_avg)
-                returns_ref = np.ones(num_tasks)
+                returns_ref, success_ref = np.ones(num_tasks), np.ones(num_tasks)
                 # returns_ref[task_id] = 1
-                task_probs = exponentiated_gradient_ascent_step(task_probs, training_returns_avg, returns_ref, task_probs,
-                                                                learning_rate=args.dro_learning_rate, eps=args.dro_eps)
+                if args.dro_return_ref:
+                    task_probs = exponentiated_gradient_ascent_step(task_probs, returns.mean(dim=0), returns_ref, task_probs,
+                                                                    learning_rate=args.dro_learning_rate, eps=args.dro_eps)
+                else:
+                    task_probs = exponentiated_gradient_ascent_step(task_probs, training_returns_avg, success_ref, task_probs,
+                                                                    learning_rate=args.dro_learning_rate, eps=args.dro_eps)
                 training_returns = [[] for i in range(num_tasks)]
             elif args.dro_reweighting and global_step % args.dro_num_steps == 0:
                 training_returns_avg = np.array([np.mean(training_returns[i]) for i in range(num_tasks)])
                 training_returns_avg = np.nan_to_num(training_returns_avg)
-                returns_ref = np.ones(num_tasks)
-                task_weights = exponentiated_gradient_ascent_step(task_weights, training_returns_avg, returns_ref, task_probs,
-                                                                learning_rate=args.dro_learning_rate, eps=args.dro_eps)
+                returns_ref, success_ref = np.ones(num_tasks), np.ones(num_tasks)
+                if args.dro_return_ref:
+                    task_weights = exponentiated_gradient_ascent_step(task_weights, returns.mean(dim=0), returns_ref, task_probs,
+                                                                    learning_rate=args.dro_learning_rate, eps=args.dro_eps)
+                else:
+                    task_weights = exponentiated_gradient_ascent_step(task_weights, training_returns_avg, success_ref, task_probs,
+                                                                    learning_rate=args.dro_learning_rate, eps=args.dro_eps)
 
         # bootstrap value if not done
         with torch.no_grad():
@@ -610,6 +622,8 @@ if __name__ == "__main__":
 
             logs['return'].append(return_all_tasks_avg)
             logs['success_rate'].append(success_all_tasks_avg)
+            logs['weights'].append(task_weights)
+            logs['probs'].append(task_probs)
 
             np.savez(
                 f'{args.output_dir}/evaluations.npz',
