@@ -60,33 +60,24 @@ class Args:
     eval_episodes: int = 100
     """Number of trajectories to collect during each evaluation"""
 
-    # DRO setting
-    task_probs_init: List[float] = None
+    task_probs_init: List[float] = field(default_factory=lambda: [1/4 for i in range(4)])
     dro: bool = False
     dro_num_steps: int = 128
     dro_learning_rate: float = 1.0
     dro_eps: float = 0.01
-    dro_resampling: bool = False
-    """using resampling for DRO"""
-    dro_reweighting: bool = False
-    """using reweighting for DRO"""
-    dro_return_ref: bool = False
-    """use return reference for dro"""
-    dro_success_ref: bool = False
-    """use success reference for dro"""
 
     linear: bool = True
     """Use a linear actor/critic network"""
 
     # Algorithm specific arguments
-    env_ids: List[str] = field(default_factory=lambda: [f"Bandit{i}-v0" for i in range(1, 5+1)])
+    env_ids: List[str] = field(default_factory=lambda: [f"GridWorldEnv{i}-v0" for i in range(1, 4+1)])
     # env_ids: List[str] = field(default_factory=lambda: [f"BanditEasy-v0", "BanditHard-v0"])
     """the id of the environment"""
-    total_timesteps: int = 128 * 300
+    total_timesteps: int = 128 * 1000
     """total timesteps of the experiments"""
-    learning_rate: float = 3e-4
+    learning_rate: float = 1e-2
     """the learning rate of the optimizer"""
-    num_envs: int = 5
+    num_envs: int = 1
     """the number of parallel game environments"""
     num_steps: int = 128
     """the number of steps to run in each environment per policy rollout"""
@@ -98,7 +89,7 @@ class Args:
     """the lambda for the general advantage estimation"""
     num_minibatches: int = 1
     """the number of mini-batches"""
-    update_epochs: int = 2
+    update_epochs: int = 1
     """the K epochs to update the policy"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
@@ -122,6 +113,7 @@ class Args:
     """the mini-batch size (computed in runtime)"""
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
+
 
 
 def simulate(env, actor, eval_episodes, eval_steps=np.inf):
@@ -198,14 +190,14 @@ class Agent(nn.Module):
 
         else:
             self.critic = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1), std=0.01),
+                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1)),
                 nn.Tanh(),
                 layer_init(nn.Linear(64, 64)),
                 nn.Tanh(),
                 layer_init(nn.Linear(64, 1), std=0.01),
             )
             self.actor = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n), std=0.01),
+                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n)),
                 nn.Tanh(),
                 layer_init(nn.Linear(64, 64)),
                 nn.Tanh(),
@@ -246,32 +238,13 @@ def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, lear
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
-    args.num_envs = len(args.env_ids)
-    if args.dro_reweighting:
-        args.batch_size = args.num_steps
-    else:
-        args.batch_size = int(args.num_envs * args.num_steps)
+    args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
-    args.num_iterations = args.total_timesteps // int(args.num_envs * args.num_steps)
+    args.num_iterations = args.total_timesteps // args.batch_size
     env_name = ""
     for env_id in args.env_ids:
         env_name += env_id + "_"
     env_name = env_name[:-1]
-
-    if not args.dro_return_ref and not args.dro_success_ref:
-        args.dro_success_ref = True
-    dro_ref_type, dro_data_type = "", ""
-    if args.dro_resampling:
-        dro_data_type = "resampling"
-    elif args.dro_reweighting:
-        dro_data_type = "reweighting"
-    else:
-        dro_data_type = "no_dro"
-    if args.dro_success_ref:
-        dro_ref_type = "success_ref"
-    else:
-        dro_ref_type = "return_ref"
-
 
     run_name = f"{env_name}__{args.exp_name}__{args.seed}__{int(time.time())}"
 
@@ -289,7 +262,7 @@ if __name__ == "__main__":
             torch.backends.cudnn.deterministic = args.torch_deterministic
 
     # Output path
-    args.output_dir = f"{args.output_rootdir}/{env_name}/ppo/{dro_data_type}/{dro_ref_type}/{args.output_subdir}"
+    args.output_dir = f"{args.output_rootdir}/{env_name}/ppo/{args.output_subdir}"
     if args.run_id is not None:
         args.output_dir += f"/run_{args.run_id}"
     else:
@@ -332,7 +305,7 @@ if __name__ == "__main__":
     for task_id in range(num_tasks):
         print(args.env_ids[task_id])
         envs = gym.vector.SyncVectorEnv(
-            [make_env(args.env_ids[task_id], i, args.capture_video, run_name) for i in range(num_tasks)],
+            [make_env(args.env_ids[task_id], i, args.capture_video, run_name) for i in range(args.num_envs)],
         )
         envs_eval = gym.vector.SyncVectorEnv(
             [make_env(args.env_ids[task_id], i, args.capture_video, run_name) for i in range(1)],
@@ -429,29 +402,15 @@ if __name__ == "__main__":
                         next_done = next_done_list[task_id]
 
             # Update task sampling probabilities
-            if args.dro_resampling and global_step % args.dro_num_steps == 0:
+            if args.dro and global_step % args.dro_num_steps == 0:
                 # training_returns_avg = []
                 training_returns_avg = np.array([np.mean(training_returns[i]) for i in range(num_tasks)])
                 training_returns_avg = np.nan_to_num(training_returns_avg)
-                returns_ref, success_ref = np.ones(num_tasks), np.ones(num_tasks)
+                returns_ref = np.ones(num_tasks)
                 # returns_ref[task_id] = 1
-                if args.dro_return_ref:
-                    task_probs = exponentiated_gradient_ascent_step(task_probs, reward, returns_ref, task_probs,
-                                                                    learning_rate=args.dro_learning_rate, eps=args.dro_eps)
-                else:
-                    task_probs = exponentiated_gradient_ascent_step(task_probs, training_returns_avg, success_ref, task_probs,
-                                                                    learning_rate=args.dro_learning_rate, eps=args.dro_eps)
+                task_probs = exponentiated_gradient_ascent_step(task_probs, training_returns_avg, returns_ref, task_probs,
+                                                                learning_rate=args.dro_learning_rate, eps=args.dro_eps)
                 training_returns = [[] for i in range(num_tasks)]
-            elif args.dro_reweighting and global_step % args.dro_num_steps == 0:
-                training_returns_avg = np.array([np.mean(training_returns[i]) for i in range(num_tasks)])
-                training_returns_avg = np.nan_to_num(training_returns_avg)
-                returns_ref, success_ref = np.ones(num_tasks), np.ones(num_tasks)
-                if args.dro_return_ref:
-                    task_weights = exponentiated_gradient_ascent_step(task_weights, reward, returns_ref, task_probs,
-                                                                    learning_rate=args.dro_learning_rate, eps=args.dro_eps)
-                else:
-                    task_weights = exponentiated_gradient_ascent_step(task_weights, training_returns_avg, success_ref, task_probs,
-                                                                    learning_rate=args.dro_learning_rate, eps=args.dro_eps)
 
         # bootstrap value if not done
         with torch.no_grad():
@@ -483,106 +442,50 @@ if __name__ == "__main__":
         for epoch in range(args.update_epochs):
             np.random.shuffle(b_inds)
             for start in range(0, args.batch_size, args.minibatch_size):
-                if args.dro_reweighting:
-                    end = start + args.minibatch_size
-                    mb_inds = b_inds[start:end]
-                    loss = 0
+                end = start + args.minibatch_size
+                mb_inds = b_inds[start:end]
 
-                    for env_idx in range(args.num_envs):
+                _, newlogprob, entropy, newvalue = agent.get_action_and_value(b_obs[mb_inds], b_actions.long()[mb_inds])
+                logratio = newlogprob - b_logprobs[mb_inds]
+                ratio = logratio.exp()
 
-                        _, newlogprob, entropy, newvalue = agent.get_action_and_value(obs[mb_inds, env_idx],
-                                                                                      actions[:, env_idx].long()[
-                                                                                          mb_inds])
-                        logratio = newlogprob - logprobs[mb_inds, env_idx]
-                        ratio = logratio.exp()
+                with torch.no_grad():
+                    # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                    old_approx_kl = (-logratio).mean()
+                    approx_kl = ((ratio - 1) - logratio).mean()
+                    clipfracs += [((ratio - 1.0).abs() > args.clip_coef).float().mean().item()]
 
-                        with torch.no_grad():
-                            # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                            old_approx_kl = (-logratio).mean()
-                            approx_kl = ((ratio - 1) - logratio).mean()
-                            clipfracs += [((ratio - 1.0).abs() > args.clip_coef).float().mean().item()]
+                mb_advantages = b_advantages[mb_inds]
+                if args.norm_adv:
+                    mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
 
-                        mb_advantages = advantages[mb_inds, env_idx]
-                        if args.norm_adv:
-                            mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
+                # Policy loss
+                pg_loss1 = -mb_advantages * ratio
+                pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
+                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
-                        # Policy loss
-                        pg_loss1 = -mb_advantages * ratio
-                        pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
-
-                        pg_loss_max = torch.max(pg_loss1, pg_loss2)
-
-                        pg_loss = pg_loss_max.mean()
-
-                        # Value loss
-                        newvalue = newvalue.view(-1)
-                        if args.clip_vloss:
-                            v_loss_unclipped = (newvalue - returns[mb_inds, env_idx]) ** 2
-                            v_clipped = values[mb_inds, env_idx] + torch.clamp(
-                                newvalue - values[mb_inds, env_idx],
-                                -args.clip_coef,
-                                args.clip_coef,
-                            )
-                            v_loss_clipped = (v_clipped - returns[mb_inds, env_idx]) ** 2
-                            v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-
-                            v_loss = 0.5 * v_loss_max.mean()
-                        else:
-
-                            v_loss_before_mean = (newvalue - returns[mb_inds, env_idx]) ** 2
-                            v_loss = 0.5 * v_loss_before_mean.mean()
-
-                        entropy_loss = entropy.mean()
-                        loss += (pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef) * task_weights[env_idx]
-
-                    optimizer.zero_grad()
-                    loss.backward()
-                    nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
-                    optimizer.step()
+                # Value loss
+                newvalue = newvalue.view(-1)
+                if args.clip_vloss:
+                    v_loss_unclipped = (newvalue - b_returns[mb_inds]) ** 2
+                    v_clipped = b_values[mb_inds] + torch.clamp(
+                        newvalue - b_values[mb_inds],
+                        -args.clip_coef,
+                        args.clip_coef,
+                    )
+                    v_loss_clipped = (v_clipped - b_returns[mb_inds]) ** 2
+                    v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                    v_loss = 0.5 * v_loss_max.mean()
                 else:
-                    end = start + args.minibatch_size
-                    mb_inds = b_inds[start:end]
+                    v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
 
-                    _, newlogprob, entropy, newvalue = agent.get_action_and_value(b_obs[mb_inds], b_actions.long()[mb_inds])
-                    logratio = newlogprob - b_logprobs[mb_inds]
-                    ratio = logratio.exp()
+                entropy_loss = entropy.mean()
+                loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
 
-                    with torch.no_grad():
-                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                        old_approx_kl = (-logratio).mean()
-                        approx_kl = ((ratio - 1) - logratio).mean()
-                        clipfracs += [((ratio - 1.0).abs() > args.clip_coef).float().mean().item()]
-
-                    mb_advantages = b_advantages[mb_inds]
-                    if args.norm_adv:
-                        mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
-
-                    # Policy loss
-                    pg_loss1 = -mb_advantages * ratio
-                    pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
-                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                    # Value loss
-                    newvalue = newvalue.view(-1)
-                    if args.clip_vloss:
-                        v_loss_unclipped = (newvalue - b_returns[mb_inds]) ** 2
-                        v_clipped = b_values[mb_inds] + torch.clamp(
-                            newvalue - b_values[mb_inds],
-                            -args.clip_coef,
-                            args.clip_coef,
-                        )
-                        v_loss_clipped = (v_clipped - b_returns[mb_inds]) ** 2
-                        v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                        v_loss = 0.5 * v_loss_max.mean()
-                    else:
-                        v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
-
-                    entropy_loss = entropy.mean()
-                    loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
-                    optimizer.zero_grad()
-                    loss.backward()
-                    nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
-                    optimizer.step()
+                optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
+                optimizer.step()
 
             if args.target_kl is not None and approx_kl > args.target_kl:
                 break
@@ -598,7 +501,6 @@ if __name__ == "__main__":
         if iteration % args.eval_freq == 0:
             print(f"Eval num_timesteps={global_step}")
             print(f'Task probs: {task_probs}')
-            print(f"Task weights={task_weights}")
             logs['timestep'].append(global_step)
             logs['update'].append(update_count)
 
@@ -636,8 +538,6 @@ if __name__ == "__main__":
 
             logs['return'].append(return_all_tasks_avg)
             logs['success_rate'].append(success_all_tasks_avg)
-            logs['weights'].append(task_weights)
-            logs['probs'].append(task_probs)
 
             np.savez(
                 f'{args.output_dir}/evaluations.npz',
