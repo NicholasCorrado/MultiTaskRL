@@ -98,7 +98,7 @@ class Args:
     """the lambda for the general advantage estimation"""
     num_minibatches: int = 1
     """the number of mini-batches"""
-    update_epochs: int = 1
+    update_epochs: int = 2
     """the K epochs to update the policy"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
@@ -268,9 +268,9 @@ if __name__ == "__main__":
     else:
         dro_data_type = "no_dro"
     if args.dro_success_ref:
-        dro_type = "success_ref"
+        dro_ref_type = "success_ref"
     else:
-        dro_type = "return_ref"
+        dro_ref_type = "return_ref"
 
 
     run_name = f"{env_name}__{args.exp_name}__{args.seed}__{int(time.time())}"
@@ -332,7 +332,7 @@ if __name__ == "__main__":
     for task_id in range(num_tasks):
         print(args.env_ids[task_id])
         envs = gym.vector.SyncVectorEnv(
-            [make_env(args.env_ids[task_id], i, args.capture_video, run_name) for i in range(args.num_envs)],
+            [make_env(args.env_ids[task_id], i, args.capture_video, run_name) for i in range(num_tasks)],
         )
         envs_eval = gym.vector.SyncVectorEnv(
             [make_env(args.env_ids[task_id], i, args.capture_video, run_name) for i in range(1)],
@@ -340,7 +340,6 @@ if __name__ == "__main__":
 
         envs_list.append(envs)
         envs_eval_list.append(envs_eval)
-
 
     if args.task_probs_init:
         task_probs = np.array(args.task_probs_init)
@@ -437,7 +436,7 @@ if __name__ == "__main__":
                 returns_ref, success_ref = np.ones(num_tasks), np.ones(num_tasks)
                 # returns_ref[task_id] = 1
                 if args.dro_return_ref:
-                    task_probs = exponentiated_gradient_ascent_step(task_probs, returns.mean(dim=0), returns_ref, task_probs,
+                    task_probs = exponentiated_gradient_ascent_step(task_probs, reward, returns_ref, task_probs,
                                                                     learning_rate=args.dro_learning_rate, eps=args.dro_eps)
                 else:
                     task_probs = exponentiated_gradient_ascent_step(task_probs, training_returns_avg, success_ref, task_probs,
@@ -448,7 +447,7 @@ if __name__ == "__main__":
                 training_returns_avg = np.nan_to_num(training_returns_avg)
                 returns_ref, success_ref = np.ones(num_tasks), np.ones(num_tasks)
                 if args.dro_return_ref:
-                    task_weights = exponentiated_gradient_ascent_step(task_weights, returns.mean(dim=0), returns_ref, task_probs,
+                    task_weights = exponentiated_gradient_ascent_step(task_weights, reward, returns_ref, task_probs,
                                                                     learning_rate=args.dro_learning_rate, eps=args.dro_eps)
                 else:
                     task_weights = exponentiated_gradient_ascent_step(task_weights, training_returns_avg, success_ref, task_probs,
