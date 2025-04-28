@@ -5,7 +5,7 @@ import numpy as np
 
 
 class Goal2DEnv(gym.Env):
-    def __init__(self, delta=0.025, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False):
+    def __init__(self, delta=0.1, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False):
 
         self.n = 2
         self.action_space = gym.spaces.Box(low=np.zeros(2), high=np.array([1, 2 * np.pi]), shape=(self.n,))
