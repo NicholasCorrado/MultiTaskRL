@@ -3,8 +3,9 @@ import os
 import random
 import time
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from typing import List
 import gymnasium as gym
 import custom_envs
 import numpy as np
@@ -64,9 +65,19 @@ class Args:
     eval_episodes: int = 20
     """Number of trajectories to collect during each evaluation"""
 
+    # DRO setting
+    task_probs_init: List[float] = field(default_factory=lambda: [1/4 for i in range(4)])
+    dro: bool = False
+    dro_num_steps: int = 128
+    dro_learning_rate: float = 1.0
+    dro_eps: float = 0.01
+    dro_success_ref: bool = False
+
     # Algorithm specific arguments
-    env_id: str = "Hopper-v4"
+    env_ids: List[str] = field(default_factory=lambda: [f"Goal2D{i}-v0" for i in range(1, 4+1)])
     """the environment id of the Atari game"""
+    num_envs: int = 1
+    """the number of parallel game environments"""
     total_timesteps: int = 300000
     """total timesteps of the experiments"""
     learning_rate: float = 3e-4
@@ -89,7 +100,9 @@ class Args:
     """noise clip parameter of the Target Policy Smoothing Regularization"""
 
 
-def make_env(env_id, seed, idx, capture_video, run_name):
+
+def make_env(env_id, idx, capture_video, run_name):
+
     def thunk():
         if capture_video and idx == 0:
             env = gym.make(env_id, render_mode="rgb_array")
@@ -97,13 +110,6 @@ def make_env(env_id, seed, idx, capture_video, run_name):
         else:
             env = gym.make(env_id)
         env = gym.wrappers.RecordEpisodeStatistics(env)
-
-        # env = gym.wrappers.ClipAction(env)
-        # env = gym.wrappers.NormalizeObservation(env)
-        # env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10), env.observation_space)
-        # env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10))
-
-        env.action_space.seed(seed)
         return env
 
     return thunk
@@ -200,7 +206,12 @@ poetry run pip install "stable_baselines3==2.0.0a1"
 """
         )
     args = tyro.cli(Args)
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    env_name = ""
+    for env_id in args.env_ids:
+        env_name += env_id + "_"
+    env_name = env_name[:-1]
+
+    run_name = f"{env_name}__{args.exp_name}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
 
@@ -221,7 +232,7 @@ poetry run pip install "stable_baselines3==2.0.0a1"
 
 
     # Output path
-    args.output_dir = f"{args.output_rootdir}/{args.env_id}/ddpg/{args.output_subdir}"
+    args.output_dir = f"{args.output_rootdir}/{env_name}/ddpg/{args.output_subdir}"
     if args.run_id is not None:
         args.output_dir += f"/run_{args.run_id}"
     else:
@@ -245,9 +256,28 @@ poetry run pip install "stable_baselines3==2.0.0a1"
     args.eval_freq = max(args.total_timesteps // args.num_evals, 1)
 
     # env setup
-    envs = gym.vector.SyncVectorEnv([make_env(env_id=args.env_id, seed=args.seed, idx=0, capture_video=args.capture_video, run_name=run_name)])
 
-    envs_eval = gym.vector.SyncVectorEnv([make_env(env_id=args.env_id, seed=args.seed, idx=0, capture_video=args.capture_video, run_name=run_name)])
+    num_tasks = len(args.env_ids)
+    envs_list = []
+    envs_eval_list = []
+    for task_id in range(num_tasks):
+        print(args.env_ids[task_id])
+        envs = gym.vector.SyncVectorEnv(
+            [make_env(args.env_ids[task_id], i, args.capture_video, run_name) for i in range(args.num_envs)],
+        )
+        envs_eval = gym.vector.SyncVectorEnv(
+            [make_env(args.env_ids[task_id], i, args.capture_video, run_name) for i in range(1)],
+        )
+
+        envs_list.append(envs)
+        envs_eval_list.append(envs_eval)
+
+    if args.task_probs_init:
+        task_probs = np.array(args.task_probs_init)
+    else:
+        task_probs = np.ones(num_tasks) / num_tasks
+
+    task_weights = np.ones(num_tasks) / num_tasks
 
     assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
 
@@ -277,6 +307,23 @@ poetry run pip install "stable_baselines3==2.0.0a1"
 
     update_count = 0
 
+    next_obs_list = []
+    next_done_list = []
+    for task_id in range(num_tasks):
+        envs = envs_list[task_id]
+        next_obs, _ = envs.reset(seed=args.seed)
+        next_obs = torch.Tensor(next_obs).to(device)
+        next_done = torch.zeros(args.num_envs).to(device)
+
+        next_obs_list.append(next_obs)
+        next_done_list.append(next_done)
+
+    task_id = np.random.choice(np.arange(num_tasks), p=task_probs)
+    envs = envs_list[task_id]
+
+    next_obs = next_obs_list[task_id]
+    next_done = next_done_list[task_id]
+
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
         if global_step < args.learning_starts:
@@ -290,6 +337,9 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         # TRY NOT TO MODIFY: execute the game and log data.
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
 
+        next_obs_list[task_id] = next_obs
+        next_done_list[task_id] = next_done
+
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         if "final_info" in infos:
             for info in infos["final_info"]:
@@ -297,6 +347,7 @@ poetry run pip install "stable_baselines3==2.0.0a1"
                 writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                 writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
                 break
+
 
         # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
         real_next_obs = next_obs.copy()
@@ -308,6 +359,11 @@ poetry run pip install "stable_baselines3==2.0.0a1"
 
         # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
         obs = next_obs
+
+        task_id = np.random.choice(np.arange(num_tasks), p=task_probs)
+        envs = envs_list[task_id]
+        next_obs = next_obs_list[task_id]
+        next_done = next_done_list[task_id]
 
         # ALGO LOGIC: training.
         if global_step > args.learning_starts:
@@ -347,19 +403,48 @@ poetry run pip install "stable_baselines3==2.0.0a1"
             update_count += 1
 
             if global_step % args.eval_freq == 0:
-                return_avg, return_std, success_avg, success_std = simulate_ddpg(env=envs_eval, actor=actor,
-                                                                            eval_episodes=args.eval_episodes, exploration_noise=args.exploration_noise,
-                                                                            device=device, single_action_space=envs.single_action_space
-                                                                                 )
-                #
                 print(f"Eval num_timesteps={global_step}")
-                print(f"episode_return={return_avg:.2f} +/- {return_std:.2f}")
-                print(f"episode_success={success_avg:.2f} +/- {success_std:.2f}")
-
+                print(f'Task probs: {task_probs}')
                 logs['timestep'].append(global_step)
-                logs['return'].append(return_avg)
-                logs['success_rate'].append(success_avg)
                 logs['update'].append(update_count)
+
+                return_all_tasks = []
+                std_all_tasks = []
+                success_all_tasks = []
+
+                for j in range(num_tasks):
+                    envs_eval = envs_eval_list[j]
+                    return_avg, return_std, success_avg, success_std = simulate_ddpg(env=envs_eval, actor=actor,
+                                                                                eval_episodes=args.eval_episodes,
+                                                                                exploration_noise=args.exploration_noise,
+                                                                                device=device, single_action_space=envs.single_action_space
+                                                                                )
+
+                    return_all_tasks.append(return_avg)
+                    success_all_tasks.append(success_avg)
+
+                    print(f"Task {j}: {args.env_ids[j]}")
+                    print(f"episode_return={return_avg:.2f} +/- {return_std:.2f}")
+                    print(f"episode_success={success_avg:.2f} +/- {success_std:.2f}")
+                    print()
+
+                    logs[f'task_probs_{j}'].append(task_probs[j])
+                    logs[f'return_{j}'].append(return_avg)
+                    logs[f'success_rate_{j}'].append(success_avg)
+
+                return_all_tasks_avg = np.mean(return_all_tasks)
+                return_all_tasks_std = np.sqrt(np.sum(np.array(std_all_tasks) ** 2))
+
+                success_all_tasks_avg = np.mean(success_all_tasks)
+                # return_all_tasks_std = np.sqrt(np.sum(np.array(std_all_tasks)**2))
+
+                print(f"Average over all tasks:")
+                print(f"episode_return={return_all_tasks_avg:.2f} +/- {return_all_tasks_std:.2f}")
+                print(f"episode_success={success_all_tasks_avg:.2f} +/- ")
+                print()
+
+                logs['return'].append(return_all_tasks_avg)
+                logs['success_rate'].append(success_all_tasks_avg)
 
                 np.savez(
                     f'{args.output_dir}/evaluations.npz',

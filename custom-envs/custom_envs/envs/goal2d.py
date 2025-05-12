@@ -5,23 +5,25 @@ import numpy as np
 
 
 class Goal2DEnv(gym.Env):
-    def __init__(self, delta=0.1, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False):
+    def __init__(self, delta=0.1, sparse=1, boundary = 1.05, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False):
 
-        self.n = 2
+        self.n = 2  # 2D chessboard
         self.action_space = gym.spaces.Box(low=np.zeros(2), high=np.array([1, 2 * np.pi]), shape=(self.n,))
 
-        self.boundary = 1.05
+        self.boundary = boundary    # chessboard size
         self.observation_space = gym.spaces.Box(-self.boundary, +self.boundary, shape=(2 * self.n,), dtype="float64")
 
         self.step_num = 0
-        self.delta = delta
+        self.delta = delta  # step = (a[0] * cos(a[1]) * delta, a[0] * sin(a[1]) * delta)
 
-        self.sparse = sparse
+        self.sparse = sparse    # sparse = 1: reward = 1 if dist(x, goal) <= 1.0; reward = -0.1 if dist(x, goal) > 1.0
         self.d = d
         self.x_norm = None
         self.quadrant = quadrant
         self.center = center
         self.fixed_goal = fixed_goal
+
+        self.task_id = [0, 0, 0, 0]
         super().__init__()
 
     def _clip_position(self):
@@ -47,8 +49,8 @@ class Goal2DEnv(gym.Env):
         else:
             reward = -dist
 
-        info = {}
-        self.obs = np.concatenate((self.x, self.goal))
+        info = {'is_success': terminated}
+        self.obs = np.concatenate((self.x, self.goal, self.task_id))
         return self._get_obs(), reward, terminated, truncated, info
 
     def _sample_goal(self):
@@ -87,3 +89,95 @@ class Goal2DEnv(gym.Env):
 class Goal2DQuadrantEnv(Goal2DEnv):
     def __init__(self, d=1, rbf_n=None, d_fourier=None, neural=False):
         super().__init__(delta=0.025, sparse=1, rbf_n=rbf_n, d_fourier=d_fourier, neural=neural, d=d, quadrant=True)
+
+
+class Goal2D1Env(Goal2DEnv):
+    def __init__(self):
+        super().__init__(delta = 0.1, boundary = 1.0, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        self.task_id = [1, 0, 0, 0]
+
+    def _sample_goal(self):
+        goal = np.array([-0.1, 0.1])
+        return goal
+
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[dict] = None,
+    ):
+        self.x = [0.0, 0.0]
+        self.step_num = 0
+        self.goal = self._sample_goal()
+
+        self.obs = np.concatenate((self.x, self.goal))
+        return self._get_obs(), {}
+
+
+class Goal2D2Env(Goal2DEnv):
+    def __init__(self):
+        super().__init__(delta = 0.1, boundary = 1.0, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        self.task_id = [0, 1, 0, 0]
+
+    def _sample_goal(self):
+        goal = np.array([-0.2, 0.2])
+        return goal
+
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[dict] = None,
+    ):
+        self.x = [0.0, 0.0]
+        self.step_num = 0
+        self.goal = self._sample_goal()
+
+        self.obs = np.concatenate((self.x, self.goal))
+        return self._get_obs(), {}
+
+
+class Goal2D3Env(Goal2DEnv):
+    def __init__(self):
+        super().__init__(delta = 0.1, boundary = 1.0, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        self.task_id = [0, 0, 1, 0]
+
+    def _sample_goal(self):
+        goal = np.array([-0.3, -0.3])
+        return goal
+
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[dict] = None,
+    ):
+        self.x = [0.0, 0.0]
+        self.step_num = 0
+        self.goal = self._sample_goal()
+
+        self.obs = np.concatenate((self.x, self.goal))
+        return self._get_obs(), {}
+
+
+class Goal2D4Env(Goal2DEnv):
+    def __init__(self):
+        super().__init__(delta = 0.1, boundary = 1.0, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        self.task_id = [0, 0, 0, 1]
+
+    def _sample_goal(self):
+        goal = np.array([0.4, -0.4])
+        return goal
+
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[dict] = None,
+    ):
+        self.x = [0.0, 0.0]
+        self.step_num = 0
+        self.goal = self._sample_goal()
+
+        self.obs = np.concatenate((self.x, self.goal))
+        return self._get_obs(), {}
