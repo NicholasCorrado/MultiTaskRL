@@ -2,7 +2,7 @@
 import os
 import random
 import time
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from dataclasses import dataclass, field
 
 from typing import List
@@ -78,9 +78,9 @@ class Args:
     """the environment id of the Atari game"""
     num_envs: int = 1
     """the number of parallel game environments"""
-    total_timesteps: int = 300000
+    total_timesteps: int = 1000000
     """total timesteps of the experiments"""
-    learning_rate: float = 3e-4
+    learning_rate: float = 1e-4
     """the learning rate of the optimizer"""
     buffer_size: int = int(1e6)
     """the replay memory buffer size"""
@@ -88,7 +88,7 @@ class Args:
     """the discount factor gamma"""
     tau: float = 0.005
     """target smoothing coefficient (default: 0.005)"""
-    batch_size: int = 256
+    batch_size: int = 64
     """the batch size of sample from the reply memory"""
     exploration_noise: float = 0.1
     """the scale of exploration noise"""
@@ -129,7 +129,7 @@ def simulate_ddpg(env, actor, eval_episodes, device, exploration_noise, single_a
 
             # ALGO LOGIC: put action logic here
             with torch.no_grad():
-                actions = actor(torch.Tensor(obs).to(device))
+                actions = actor(torch.Tensor(_get_obs(obs)).to(device))
                 actions += torch.normal(0, actor.action_scale * exploration_noise)
                 actions = actions.cpu().numpy().clip(single_action_space.low, single_action_space.high)
 
@@ -150,7 +150,12 @@ def simulate_ddpg(env, actor, eval_episodes, device, exploration_noise, single_a
             break
 
         logs['returns'].append(np.sum(logs_episode['rewards']))
-        logs['successes'].append(infos['final_info'][0]['is_success'])
+        if 'is_success' in infos['final_info'][0]:
+            logs['successes'].append(infos['final_info'][0]['is_success'])
+        elif 'success' in infos['final_info'][0]:
+            logs['successes'].append(infos['final_info'][0]['success'])
+        else:
+            logs['successes'].append(False)
 
     return_avg = np.mean(logs['returns'])
     return_std = np.std(logs['returns'])
@@ -163,7 +168,7 @@ def simulate_ddpg(env, actor, eval_episodes, device, exploration_noise, single_a
 class QNetwork(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.single_observation_space.shape).prod() + np.prod(env.single_action_space.shape), 256)
+        self.fc1 = nn.Linear(np.array(_get_obs_box(env.single_observation_space).shape).prod() + np.prod(env.single_action_space.shape), 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc3 = nn.Linear(256, 1)
 
@@ -178,7 +183,7 @@ class QNetwork(nn.Module):
 class Actor(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.single_observation_space.shape).prod(), 256)
+        self.fc1 = nn.Linear(np.array(_get_obs_box(envs.single_observation_space).shape).prod(), 256)
         self.fc2 = nn.Linear(256, 256)
         self.fc_mu = nn.Linear(256, np.prod(env.single_action_space.shape))
         # action rescaling
@@ -209,8 +214,33 @@ def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, lear
     w_uniform = 1/len(w_new) * np.ones(len(w_new))
     w_new = (1 - eps) * w_new + eps * w_uniform
 
-
     return w_new
+
+def _get_obs_box (obs = None):
+    if isinstance(obs, gym.spaces.Dict) or isinstance(obs, OrderedDict):
+        box_size = (0,)
+        low = high = []
+        for item in obs.items():
+            low = np.concatenate((low, item[1].low))
+            high = np.concatenate((high, item[1].high))
+            box_size = np.add(box_size, item[1].shape)
+        return gym.spaces.Box(low=low, high=high, shape=box_size, dtype=np.float32)
+    else:
+        return obs
+
+def _get_obs (obs = None):
+    if isinstance(obs, gym.spaces.Dict) or isinstance(obs, OrderedDict) or isinstance(obs, dict):
+        ret = None
+        for key, item in obs.items():
+            while len(item.shape) > 1:
+                item = item[0]
+            if ret is None:
+                ret = item
+            else:
+                ret = np.concatenate((ret, item))
+        return ret
+    else:
+        return obs
 
 
 if __name__ == "__main__":
@@ -290,7 +320,7 @@ poetry run pip install "stable_baselines3==2.0.0a1"
 
     training_returns = [[] for i in range(num_tasks)]
 
-    if args.task_probs_init:
+    if args.task_probs_init and len(args.task_probs_init) == num_tasks:
         task_probs = np.array(args.task_probs_init)
     else:
         task_probs = np.ones(num_tasks) / num_tasks
@@ -308,10 +338,15 @@ poetry run pip install "stable_baselines3==2.0.0a1"
     q_optimizer = optim.Adam(list(qf1.parameters()), lr=args.learning_rate)
     actor_optimizer = optim.Adam(list(actor.parameters()), lr=args.learning_rate)
 
-    envs.single_observation_space.dtype = np.float32
+    if isinstance(envs.single_observation_space, gym.spaces.Dict):
+        for item in envs.single_observation_space.keys():
+            envs.single_observation_space[item].dtype = np.float32
+    else:
+        envs.single_observation_space.dtype = np.float32
+
     rb = ReplayBuffer(
         args.buffer_size,
-        envs.single_observation_space,
+        _get_obs_box(envs.single_observation_space),
         envs.single_action_space,
         device,
         handle_timeout_termination=False,
@@ -330,6 +365,7 @@ poetry run pip install "stable_baselines3==2.0.0a1"
     for task_id in range(num_tasks):
         envs = envs_list[task_id]
         next_obs, _ = envs.reset(seed=args.seed)
+        next_obs = _get_obs(next_obs)
         next_obs = torch.Tensor(next_obs).to(device)
         next_done = torch.zeros(args.num_envs).to(device)
 
@@ -348,7 +384,7 @@ poetry run pip install "stable_baselines3==2.0.0a1"
             actions = np.array([envs.single_action_space.sample() for _ in range(envs.num_envs)])
         else:
             with torch.no_grad():
-                actions = actor(torch.Tensor(obs).to(device))
+                actions = actor(torch.Tensor(_get_obs(obs)).to(device))
                 actions += torch.normal(0, actor.action_scale * args.exploration_noise)
                 actions = actions.cpu().numpy().clip(envs.single_action_space.low, envs.single_action_space.high)
 
@@ -358,14 +394,17 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         next_obs_list[task_id] = next_obs
         next_done_list[task_id] = next_done
 
-
         # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
-        real_next_obs = next_obs.copy()
+        real_next_obs = _get_obs(next_obs.copy())
         if "final_observation" in infos:
             for idx, trunc in enumerate(truncations):
                 if trunc:
-                    real_next_obs[idx] = infos["final_observation"][idx]
-        rb.add(obs, real_next_obs, actions, rewards, terminations, infos)
+                    if len(truncations) > 1:
+                        real_next_obs[idx] = _get_obs(infos["final_observation"][idx])
+                    else:
+                        real_next_obs = _get_obs(infos["final_observation"][idx])
+
+        rb.add(_get_obs(obs), real_next_obs, actions, rewards, terminations, infos)
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         if "final_info" in infos:
@@ -373,7 +412,12 @@ poetry run pip install "stable_baselines3==2.0.0a1"
                 if info and "episode" in info:
                     # print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                     if args.dro_success_ref:
-                        training_returns[task_id].append(np.mean(info['is_success']))
+                        if 'is_success' in info:
+                            training_returns[task_id].append(np.mean(info['is_success']))
+                        elif 'success' in info:
+                            training_returns[task_id].append(np.mean(info['success']))
+                        else:
+                            raise Exception("No success data found in info.")
                     else:
                         training_returns[task_id].append(np.mean(info["episode"]["r"]))
 
@@ -401,7 +445,7 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         if global_step > args.learning_starts:
             data = rb.sample(args.batch_size)
             with torch.no_grad():
-                next_state_actions = target_actor(data.next_observations)
+                next_state_actions = target_actor(_get_obs(data.next_observations))
                 qf1_next_target = qf1_target(data.next_observations, next_state_actions)
                 next_q_value = data.rewards.flatten() + (1 - data.dones.flatten()) * args.gamma * (qf1_next_target).view(-1)
 
