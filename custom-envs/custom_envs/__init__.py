@@ -34,11 +34,12 @@ kwargs = {
 }
 
 register(
-    id=f"CleanPointMaze1-v0",
-    entry_point="custom_envs.envs.cleanpointmaze:CleanPointMaze",
+    id=f"PointMaze1-v0",
+    entry_point="gymnasium_robotics.envs.maze.point_maze:PointMazeEnv",
     kwargs=_merge(
         {
             "maze_map": maps.U_MAZE,
+            "continuing_task": False,
         },
         kwargs,
     ),
@@ -46,11 +47,12 @@ register(
 )
 
 register(
-    id=f"CleanPointMaze2-v0",
-    entry_point="custom_envs.envs.cleanpointmaze:CleanPointMaze",
+    id=f"PointMaze2-v0",
+    entry_point="gymnasium_robotics.envs.maze.point_maze:PointMazeEnv",
     kwargs=_merge(
         {
             "maze_map": maps.MEDIUM_MAZE,
+            "continuing_task": False,
         },
         kwargs,
     ),
@@ -58,11 +60,12 @@ register(
 )
 
 register(
-    id=f"CleanPointMaze3-v0",
-    entry_point="custom_envs.envs.cleanpointmaze:CleanPointMaze",
+    id=f"PointMaze3-v0",
+    entry_point="gymnasium_robotics.envs.maze.point_maze:PointMazeEnv",
     kwargs=_merge(
         {
             "maze_map": maps.LARGE_MAZE,
+            "continuing_task": False,
         },
         kwargs,
     ),
