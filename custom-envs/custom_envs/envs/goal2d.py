@@ -96,12 +96,8 @@ class Goal2DQuadrantEnv(Goal2DEnv):
 
 class Goal2D1Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 1.0, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 1.0, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=True, center=False, fixed_goal=False)
         self.task_id = [1, 0, 0, 0]
-
-    def _sample_goal(self):
-        goal = np.array([-1.0, 1.0])
-        return goal
 
     def reset(
         self,
@@ -119,12 +115,8 @@ class Goal2D1Env(Goal2DEnv):
 
 class Goal2D2Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.5, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.5, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=True, center=False, fixed_goal=False)
         self.task_id = [0, 1, 0, 0]
-
-    def _sample_goal(self):
-        goal = np.array([-1.0, 1.0])
-        return goal
 
     def reset(
         self,
@@ -142,12 +134,8 @@ class Goal2D2Env(Goal2DEnv):
 
 class Goal2D3Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.3, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.3, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=True, center=False, fixed_goal=False)
         self.task_id = [0, 0, 1, 0]
-
-    def _sample_goal(self):
-        goal = np.array([-1.0, -1.0])
-        return goal
 
     def reset(
         self,
@@ -165,12 +153,8 @@ class Goal2D3Env(Goal2DEnv):
 
 class Goal2D4Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.1, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.1, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=True, center=False, fixed_goal=False)
         self.task_id = [0, 0, 0, 1]
-
-    def _sample_goal(self):
-        goal = np.array([1.0, -1.0])
-        return goal
 
     def reset(
         self,
