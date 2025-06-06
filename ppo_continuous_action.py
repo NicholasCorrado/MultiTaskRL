@@ -17,8 +17,6 @@ from stable_baselines3.common.utils import get_latest_run_id
 from torch.distributions.normal import Normal
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import simulate
-
 
 @dataclass
 class Args:
@@ -55,6 +53,7 @@ class Args:
     """Results are saved to {output_rootdir}/ppo/{output_subdir}/run_{run_id}"""
 
     # Evaluation
+    num_evals: int = 100
     eval_freq: int = 10
     """Evaluate policy every eval_freq updates"""
     eval_episodes: int = 20
@@ -63,15 +62,15 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "HalfCheetah-v5"
     """the id of the environment"""
-    total_timesteps: int = 1000000
+    total_timesteps: int = 500000
     """total timesteps of the experiments"""
     learning_rate: float = 3e-4
     """the learning rate of the optimizer"""
     num_envs: int = 1
     """the number of parallel game environments"""
-    num_steps: int = 2048
+    num_steps: int = 8192
     """the number of steps to run in each environment per policy rollout"""
-    anneal_lr: bool = True
+    anneal_lr: bool = False
     """Toggle learning rate annealing for policy and value networks"""
     gamma: float = 0.99
     """the discount factor gamma"""
@@ -79,7 +78,7 @@ class Args:
     """the lambda for the general advantage estimation"""
     num_minibatches: int = 32
     """the number of mini-batches"""
-    update_epochs: int = 10
+    update_epochs: int = 20
     """the K epochs to update the policy"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
@@ -112,13 +111,13 @@ def make_env(env_id, idx, capture_video, run_name, gamma):
             env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         else:
             env = gym.make(env_id)
-        env = gym.wrappers.FlattenObservation(env)  # deal with dm_control's Dict observation space
+        # env = gym.wrappers.FlattenObservation(env)  # deal with dm_control's Dict observation space
         env = gym.wrappers.RecordEpisodeStatistics(env)
-        env = gym.wrappers.ClipAction(env)
-        env = gym.wrappers.NormalizeObservation(env)
-        env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10), env.observation_space)
-        env = gym.wrappers.NormalizeReward(env, gamma=gamma)
-        env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10))
+        # env = gym.wrappers.ClipAction(env)
+        # env = gym.wrappers.NormalizeObservation(env)
+        # env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10))
+        # env = gym.wrappers.NormalizeReward(env, gamma=gamma)
+        # env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10))
         return env
 
     return thunk
@@ -161,13 +160,58 @@ class Agent(nn.Module):
             action = probs.sample()
         return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(x)
 
-    def get_action(self, x):
+    def get_action(self, x, sample=True):
         action_mean = self.actor_mean(x)
         action_logstd = self.actor_logstd.expand_as(action_mean)
         action_std = torch.exp(action_logstd)
         probs = Normal(action_mean, action_std)
         action = probs.sample()
         return action
+
+def simulate(env, actor, eval_episodes, eval_steps=np.inf):
+    logs = defaultdict(list)
+    step = 0
+    for episode_i in range(eval_episodes):
+        logs_episode = defaultdict(list)
+
+        obs, _ = env.reset()
+        done = False
+
+        while not done:
+
+            # ALGO LOGIC: put action logic here
+            with torch.no_grad():
+                actions = actor.get_action(torch.Tensor(obs).to('cpu'), sample=False)
+                actions = actions.cpu().numpy()
+
+            # TRY NOT TO MODIFY: execute the game and log data.
+            next_obs, rewards, terminateds, truncateds, infos = env.step(actions)
+            done = np.logical_or(terminateds, truncateds)
+
+            # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
+            obs = next_obs
+            logs_episode['rewards'].append(rewards)
+
+            step += 1
+
+            if step >= eval_steps:
+                break
+        if step >= eval_steps:
+            break
+
+        logs['returns'].append(np.sum(logs_episode['rewards']))
+        if 'is_success' in infos['final_info'][0]:
+            logs['successes'].append(infos['final_info'][0]['is_success'])
+        elif 'success' in infos['final_info'][0]:
+            logs['successes'].append(infos['final_info'][0]['success'])
+        else:
+            logs['successes'].append(False)
+
+    return_avg = np.mean(logs['returns'])
+    return_std = np.std(logs['returns'])
+    success_avg = np.mean(logs['successes'])
+    success_std = np.std(logs['successes'])
+    return return_avg, return_std, success_avg, success_std
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
@@ -223,6 +267,8 @@ if __name__ == "__main__":
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
+
+    args.eval_freq = max(args.num_iterations // args.num_evals, 1)
 
     # env setup
     envs = gym.vector.SyncVectorEnv(
@@ -284,7 +330,7 @@ if __name__ == "__main__":
             if "final_info" in infos:
                 for info in infos["final_info"]:
                     if info and "episode" in info:
-                        print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
+                        # print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                         writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
 

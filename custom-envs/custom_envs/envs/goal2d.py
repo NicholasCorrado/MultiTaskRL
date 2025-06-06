@@ -11,7 +11,10 @@ class Goal2DEnv(gym.Env):
         self.action_space = gym.spaces.Box(low=np.zeros(2), high=np.array([1, 2 * np.pi]), shape=(self.n,))
 
         self.boundary = boundary    # chessboard size
-        self.observation_space = gym.spaces.Box(-self.boundary, +self.boundary, shape=(2 * self.n,), dtype="float64")
+        self.observation_space = gym.spaces.Box(np.array([-self.boundary, -self.boundary, -self.boundary, -self.boundary, 0, 0, 0, 0]),
+                                                np.array([+self.boundary, +self.boundary, +self.boundary, +self.boundary, 1, 1, 1, 1]),
+                                                shape=(2 * self.n + 4,),
+                                                dtype="float64")
 
         self.step_num = 0
         self.delta = delta  # step = (a[0] * cos(a[1]) * delta, a[0] * sin(a[1]) * delta)
@@ -63,7 +66,7 @@ class Goal2DEnv(gym.Env):
         return goal
 
     def _get_obs(self):
-        return np.concatenate([self.x, self.goal])
+        return np.concatenate([self.x, self.goal, self.task_id])
 
     def reset(
         self,
@@ -93,11 +96,11 @@ class Goal2DQuadrantEnv(Goal2DEnv):
 
 class Goal2D1Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.1, boundary = 1.0, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 1.0, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
         self.task_id = [1, 0, 0, 0]
 
     def _sample_goal(self):
-        goal = np.array([-0.1, 0.1])
+        goal = np.array([-1.0, 1.0])
         return goal
 
     def reset(
@@ -116,11 +119,11 @@ class Goal2D1Env(Goal2DEnv):
 
 class Goal2D2Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.1, boundary = 1.0, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.5, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
         self.task_id = [0, 1, 0, 0]
 
     def _sample_goal(self):
-        goal = np.array([-0.2, 0.2])
+        goal = np.array([-1.0, 1.0])
         return goal
 
     def reset(
@@ -139,11 +142,11 @@ class Goal2D2Env(Goal2DEnv):
 
 class Goal2D3Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.1, boundary = 1.0, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.3, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
         self.task_id = [0, 0, 1, 0]
 
     def _sample_goal(self):
-        goal = np.array([-0.3, -0.3])
+        goal = np.array([-1.0, -1.0])
         return goal
 
     def reset(
@@ -162,11 +165,11 @@ class Goal2D3Env(Goal2DEnv):
 
 class Goal2D4Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.1, boundary = 1.0, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.1, boundary = 1.05, sparse=1, rbf_n=None, d_fourier=None, neural=False, d=1, quadrant=False, center=False, fixed_goal=False)
         self.task_id = [0, 0, 0, 1]
 
     def _sample_goal(self):
-        goal = np.array([0.4, -0.4])
+        goal = np.array([1.0, -1.0])
         return goal
 
     def reset(

@@ -28,7 +28,7 @@ from utils import simulate, simulate_ddpg
 class Args:
     exp_name: str = os.path.basename(__file__)[: -len(".py")]
     """the name of this experiment"""
-    seed: int = 1
+    seed: int = None
     """seed of the experiment"""
     torch_deterministic: bool = True
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
@@ -73,6 +73,7 @@ class Args:
     dro_eps: float = 0.01
     dro_success_ref: bool = False
     dro_momentum: float = 1.0
+    """momentum for task probs update"""
 
     rotate_action: bool = False
 
@@ -281,6 +282,19 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         env_name += env_id + "_"
     env_name = env_name[:-1]
 
+    # Seeding
+    if args.seed is None:
+        if args.run_id:
+            args.seed = args.run_id
+        else:
+            args.seed = np.random.randint(2 ** 32 - 1)
+
+            # TRY NOT TO MODIFY: seeding
+            random.seed(args.seed)
+            np.random.seed(args.seed)
+            torch.manual_seed(args.seed)
+            torch.backends.cudnn.deterministic = args.torch_deterministic
+
     run_name = f"{env_name}__{args.exp_name}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
@@ -352,14 +366,24 @@ poetry run pip install "stable_baselines3==2.0.0a1"
 
     assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
 
-    actor = Actor(envs).to(device)
-    qf1 = QNetwork(envs).to(device)
-    qf1_target = QNetwork(envs).to(device)
-    target_actor = Actor(envs).to(device)
-    target_actor.load_state_dict(actor.state_dict())
-    qf1_target.load_state_dict(qf1.state_dict())
-    q_optimizer = optim.Adam(list(qf1.parameters()), lr=args.learning_rate)
-    actor_optimizer = optim.Adam(list(actor.parameters()), lr=args.learning_rate)
+    actor_list, qf1_list, qf1_target_list, target_actor_list, q_optimizer_list, actor_optimizer_list = [], [], [], [], [], []
+    for i in range(num_tasks):
+        envs = envs_list[i]
+        actor = Actor(envs).to(device)
+        qf1 = QNetwork(envs).to(device)
+        qf1_target = QNetwork(envs).to(device)
+        target_actor = Actor(envs).to(device)
+        target_actor.load_state_dict(actor.state_dict())
+        qf1_target.load_state_dict(qf1.state_dict())
+        q_optimizer = optim.Adam(list(qf1.parameters()), lr=args.learning_rate)
+        actor_optimizer = optim.Adam(list(actor.parameters()), lr=args.learning_rate)
+
+        actor_list.append(actor)
+        qf1_list.append(qf1)
+        qf1_target_list.append(qf1_target)
+        target_actor_list.append(target_actor)
+        q_optimizer_list.append(q_optimizer)
+        actor_optimizer_list.append(actor_optimizer)
 
     if isinstance(envs.single_observation_space, gym.spaces.Dict):
         for item in envs.single_observation_space.keys():
@@ -400,6 +424,13 @@ poetry run pip install "stable_baselines3==2.0.0a1"
 
     next_obs = next_obs_list[task_id]
     next_done = next_done_list[task_id]
+
+    actor = actor_list[task_id]
+    qf1 = qf1_list[task_id]
+    qf1_target = qf1_target_list[task_id]
+    target_actor = target_actor_list[task_id]
+    q_optimizer = q_optimizer_list[task_id]
+    actor_optimizer = actor_optimizer_list[task_id]
 
     for global_step in range(args.total_timesteps):
         # ALGO LOGIC: put action logic here
@@ -468,6 +499,14 @@ poetry run pip install "stable_baselines3==2.0.0a1"
 
         # ALGO LOGIC: training.
         if global_step > args.learning_starts and global_step % args.train_freq == 0:
+
+            actor = actor_list[task_id]
+            qf1 = qf1_list[task_id]
+            qf1_target = qf1_target_list[task_id]
+            target_actor = target_actor_list[task_id]
+            q_optimizer = q_optimizer_list[task_id]
+            actor_optimizer = actor_optimizer_list[task_id]
+
             data = rb[task_id].sample(args.batch_size)
             with torch.no_grad():
                 next_state_actions = target_actor(_get_obs(data.next_observations, num_tasks, task_id))
@@ -503,6 +542,13 @@ poetry run pip install "stable_baselines3==2.0.0a1"
 
             update_count += 1
 
+            actor_list[task_id] = actor
+            qf1_list[task_id] = qf1
+            qf1_target_list[task_id] = qf1_target
+            target_actor_list[task_id] = target_actor
+            q_optimizer_list[task_id] = q_optimizer
+            actor_optimizer_list[task_id] = actor_optimizer
+
         if global_step > args.learning_starts and global_step % args.eval_freq == 0:
             print(f"Eval num_timesteps={global_step}")
             print(f'Task probs: {task_probs}')
@@ -515,7 +561,7 @@ poetry run pip install "stable_baselines3==2.0.0a1"
 
             for j in range(num_tasks):
                 envs_eval = envs_eval_list[j]
-                return_avg, return_std, success_avg, success_std = simulate_ddpg(env=envs_eval, actor=actor,
+                return_avg, return_std, success_avg, success_std = simulate_ddpg(env=envs_eval, actor=actor_list[j],
                                                                             eval_episodes=args.eval_episodes,
                                                                             exploration_noise=args.exploration_noise,
                                                                             device=device, single_action_space=envs.single_action_space,

@@ -1,11 +1,11 @@
-# docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppopy
+# docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppo_continuous_actionpy
 import os
 import random
 import time
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from dataclasses import dataclass, field
-from typing import List
 
+from typing import List
 import gymnasium as gym
 import custom_envs
 import numpy as np
@@ -15,10 +15,9 @@ import torch.optim as optim
 import tyro
 import yaml
 from stable_baselines3.common.utils import get_latest_run_id
-from torch.distributions.categorical import Categorical
+from torch.distributions.normal import Normal
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import simulate
 
 @dataclass
 class Args:
@@ -55,32 +54,31 @@ class Args:
     """Results are saved to {output_rootdir}/ppo/{output_subdir}/run_{run_id}"""
 
     # Evaluation
+    num_evals: int = 100
     eval_freq: int = 10
     """Evaluate policy every eval_freq updates"""
-    eval_episodes: int = 100
+    eval_episodes: int = 20
     """Number of trajectories to collect during each evaluation"""
 
-    task_probs_init: List[float] = field(default_factory=lambda: [1/5 for i in range(5)])
+    # DRO setting
+    task_probs_init: List[float] = field(default_factory=lambda: [1/4 for i in range(4)])
     dro: bool = False
-    dro_num_steps: int = 128
-    dro_learning_rate: float = 1.0
+    dro_num_steps: int = 1000
+    dro_learning_rate: float = 0.1
     dro_eps: float = 0.01
     dro_success_ref: bool = False
-
-    linear: bool = True
-    """Use a linear actor/critic network"""
+    dro_momentum: float = 1.0
 
     # Algorithm specific arguments
-    env_ids: List[str] = field(default_factory=lambda: [f"Bandit{i}-v0" for i in range(1, 5+1)])
-    # env_ids: List[str] = field(default_factory=lambda: [f"BanditEasy-v0", "BanditHard-v0"])
+    env_ids: List[str] = field(default_factory=lambda: [f"Goal2D{i}-v0" for i in range(1, 4+1)])
     """the id of the environment"""
-    total_timesteps: int = 128 * 300
+    total_timesteps: int = 500000
     """total timesteps of the experiments"""
     learning_rate: float = 3e-4
     """the learning rate of the optimizer"""
     num_envs: int = 1
     """the number of parallel game environments"""
-    num_steps: int = 128
+    num_steps: int = 8192
     """the number of steps to run in each environment per policy rollout"""
     anneal_lr: bool = False
     """Toggle learning rate annealing for policy and value networks"""
@@ -88,17 +86,17 @@ class Args:
     """the discount factor gamma"""
     gae_lambda: float = 0.95
     """the lambda for the general advantage estimation"""
-    num_minibatches: int = 1
+    num_minibatches: int = 32
     """the number of mini-batches"""
-    update_epochs: int = 1
+    update_epochs: int = 20
     """the K epochs to update the policy"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
-    clip_coef: float = 9999999
+    clip_coef: float = 0.2
     """the surrogate clipping coefficient"""
     clip_vloss: bool = True
     """Toggles whether or not to use a clipped loss for the value function, as per the paper."""
-    ent_coef: float = 0.01
+    ent_coef: float = 0.0
     """coefficient of the entropy"""
     vf_coef: float = 0.5
     """coefficient of the value function"""
@@ -116,6 +114,69 @@ class Args:
     """the number of iterations (computed in runtime)"""
 
 
+def make_env(env_id, idx, capture_video, run_name):
+    def thunk():
+        if capture_video and idx == 0:
+            env = gym.make(env_id, render_mode="rgb_array")
+            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
+        else:
+            env = gym.make(env_id)
+        # env = gym.wrappers.FlattenObservation(env)  # deal with dm_control's Dict observation space
+        env = gym.wrappers.RecordEpisodeStatistics(env)
+        # env = gym.wrappers.ClipAction(env)
+        # env = gym.wrappers.NormalizeObservation(env)
+        # env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10))
+        # env = gym.wrappers.NormalizeReward(env, gamma=gamma)
+        # env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10))
+        return env
+
+    return thunk
+
+
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
+
+
+class Agent(nn.Module):
+    def __init__(self, envs):
+        super().__init__()
+        self.critic = nn.Sequential(
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 1), std=1.0),
+        )
+        self.actor_mean = nn.Sequential(
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, np.prod(envs.single_action_space.shape)), std=0.01),
+        )
+        self.actor_logstd = nn.Parameter(torch.zeros(1, np.prod(envs.single_action_space.shape)))
+
+    def get_value(self, x):
+        return self.critic(x)
+
+    def get_action_and_value(self, x, action=None):
+        action_mean = self.actor_mean(x)
+        action_logstd = self.actor_logstd.expand_as(action_mean)
+        action_std = torch.exp(action_logstd)
+        probs = Normal(action_mean, action_std)
+        if action is None:
+            action = probs.sample()
+        return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(x)
+
+    def get_action(self, x, sample=True):
+        action_mean = self.actor_mean(x)
+        action_logstd = self.actor_logstd.expand_as(action_mean)
+        action_std = torch.exp(action_logstd)
+        probs = Normal(action_mean, action_std)
+        action = probs.sample()
+        return action
 
 def simulate(env, actor, eval_episodes, eval_steps=np.inf):
     logs = defaultdict(list)
@@ -149,77 +210,18 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
             break
 
         logs['returns'].append(np.sum(logs_episode['rewards']))
-        logs['successes'].append(infos['final_info'][0]['is_success'])
+        if 'is_success' in infos['final_info'][0]:
+            logs['successes'].append(infos['final_info'][0]['is_success'])
+        elif 'success' in infos['final_info'][0]:
+            logs['successes'].append(infos['final_info'][0]['success'])
+        else:
+            logs['successes'].append(False)
 
     return_avg = np.mean(logs['returns'])
     return_std = np.std(logs['returns'])
     success_avg = np.mean(logs['successes'])
     success_std = np.std(logs['successes'])
     return return_avg, return_std, success_avg, success_std
-
-def make_env(env_id, idx, capture_video, run_name):
-
-    def thunk():
-        if capture_video and idx == 0:
-            env = gym.make(env_id, render_mode="rgb_array")
-            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
-        else:
-            env = gym.make(env_id)
-        env = gym.wrappers.RecordEpisodeStatistics(env)
-        return env
-
-    return thunk
-
-
-def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-    torch.nn.init.orthogonal_(layer.weight, std)
-    torch.nn.init.constant_(layer.bias, bias_const)
-    return layer
-
-
-class Agent(nn.Module):
-    def __init__(self, envs, linear=True):
-        super().__init__()
-
-        if linear:
-            self.critic = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1), std=0.01),
-            )
-            self.actor = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n), std=0.01),
-            )
-
-        else:
-            self.critic = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1), std=0.01),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 64)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 1), std=0.01),
-            )
-            self.actor = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n), std=0.01),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 64)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01),
-            )
-
-    def get_value(self, x):
-        return self.critic(x)
-
-    def get_action_and_value(self, x, action=None):
-        logits = self.actor(x)
-        probs = Categorical(logits=logits)
-        if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(x)
-
-    def get_action(self, x, sample=True):
-        logits = self.actor(x)
-        probs = Categorical(logits=logits)
-        action = probs.sample()
-        return action
 
 def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, learning_rate=1.0, eps=0.1):
     diff = np.clip(returns_ref - returns, 0, np.inf)
@@ -241,11 +243,11 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
+
     env_name = ""
     for env_id in args.env_ids:
         env_name += env_id + "_"
     env_name = env_name[:-1]
-
     run_name = f"{env_name}__{args.exp_name}__{args.seed}__{int(time.time())}"
 
     # Seeding
@@ -275,7 +277,6 @@ if __name__ == "__main__":
     with open(os.path.join(args.output_dir, "config.yml"), "w") as f:
         yaml.dump(args, f, sort_keys=True)
 
-
     # wandb
     if args.track:
         import wandb
@@ -289,14 +290,15 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    # writer = SummaryWriter(f"runs/{run_name}")
-    # writer.add_text(
-    #     "hyperparameters",
-    #     "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
-    # )
+    writer = SummaryWriter(f"runs/{run_name}")
+    writer.add_text(
+        "hyperparameters",
+        "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
+    args.eval_freq = max(args.num_iterations // args.num_evals, 1)
 
     # env setup
     num_tasks = len(args.env_ids)
@@ -314,16 +316,18 @@ if __name__ == "__main__":
         envs_list.append(envs)
         envs_eval_list.append(envs_eval)
 
-    if args.task_probs_init:
+    training_returns = [[] for i in range(num_tasks)]
+
+    if args.task_probs_init and len(args.task_probs_init) == num_tasks:
         task_probs = np.array(args.task_probs_init)
     else:
         task_probs = np.ones(num_tasks) / num_tasks
 
     task_weights = np.ones(num_tasks) / num_tasks
 
-    assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
+    assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
 
-    agent = Agent(envs, linear=args.linear).to(device)
+    agent = Agent(envs).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
@@ -360,6 +364,7 @@ if __name__ == "__main__":
     next_done = next_done_list[task_id]
 
     for iteration in range(1, args.num_iterations + 1):
+        # Annealing the rate if instructed to do so.
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
             lrnow = frac * args.learning_rate
@@ -392,7 +397,6 @@ if __name__ == "__main__":
                         # print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                         # writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         # writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
-                        # training_returns[task_id].append(np.mean(info["episode"]["r"]))
                         if args.dro_success_ref:
                             training_returns[task_id].append(np.mean(info['is_success']))
                         else:
@@ -405,11 +409,9 @@ if __name__ == "__main__":
 
             # Update task sampling probabilities
             if args.dro and global_step % args.dro_num_steps == 0:
-                # training_returns_avg = []
                 training_returns_avg = np.array([np.mean(training_returns[i]) for i in range(num_tasks)])
                 training_returns_avg = np.nan_to_num(training_returns_avg)
                 returns_ref = np.ones(num_tasks)
-                # returns_ref[task_id] = 1
                 task_probs = exponentiated_gradient_ascent_step(task_probs, training_returns_avg, returns_ref, task_probs,
                                                                 learning_rate=args.dro_learning_rate, eps=args.dro_eps)
                 training_returns = [[] for i in range(num_tasks)]
@@ -447,7 +449,7 @@ if __name__ == "__main__":
                 end = start + args.minibatch_size
                 mb_inds = b_inds[start:end]
 
-                _, newlogprob, entropy, newvalue = agent.get_action_and_value(b_obs[mb_inds], b_actions.long()[mb_inds])
+                _, newlogprob, entropy, newvalue = agent.get_action_and_value(b_obs[mb_inds], b_actions[mb_inds])
                 logratio = newlogprob - b_logprobs[mb_inds]
                 ratio = logratio.exp()
 
@@ -496,9 +498,19 @@ if __name__ == "__main__":
         var_y = np.var(y_true)
         explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
 
-        update_count += 1
+        # TRY NOT TO MODIFY: record rewards for plotting purposes
+        writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
+        writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
+        writer.add_scalar("losses/policy_loss", pg_loss.item(), global_step)
+        writer.add_scalar("losses/entropy", entropy_loss.item(), global_step)
+        writer.add_scalar("losses/old_approx_kl", old_approx_kl.item(), global_step)
+        writer.add_scalar("losses/approx_kl", approx_kl.item(), global_step)
+        writer.add_scalar("losses/clipfrac", np.mean(clipfracs), global_step)
+        writer.add_scalar("losses/explained_variance", explained_var, global_step)
+        # print("SPS:", int(global_step / (time.time() - start_time)))
+        writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
-        # print(task_probs)
+        update_count += 1
 
         if iteration % args.eval_freq == 0:
             print(f"Eval num_timesteps={global_step}")
@@ -551,5 +563,12 @@ if __name__ == "__main__":
         torch.save(agent.state_dict(), model_path)
         print(f"model saved to {model_path}")
 
+        # if args.upload_model:
+        #     from cleanrl_utils.huggingface import push_to_hub
+        #
+        #     repo_name = f"{args.env_id}-{args.exp_name}-seed{args.seed}"
+        #     repo_id = f"{args.hf_entity}/{repo_name}" if args.hf_entity else repo_name
+        #     push_to_hub(args, episodic_returns, repo_id, "PPO", f"runs/{run_name}", f"videos/{run_name}-eval")
+
     envs.close()
-    # writer.close()
+    writer.close()
