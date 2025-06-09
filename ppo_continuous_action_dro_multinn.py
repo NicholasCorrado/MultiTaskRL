@@ -63,22 +63,25 @@ class Args:
     # DRO setting
     task_probs_init: List[float] = field(default_factory=lambda: [1/4 for i in range(4)])
     dro: bool = False
-    dro_num_steps: int = 1024
+    dro_num_steps: int = 8192
     dro_learning_rate: float = 0.1
     dro_eps: float = 0.01
     dro_success_ref: bool = False
     dro_momentum: float = 1.0
+
+    # Multi Actor-Critic setting
+    shared_nn: bool = False
 
     # Algorithm specific arguments
     env_ids: List[str] = field(default_factory=lambda: [f"Goal2D{i}-v0" for i in range(1, 4+1)])
     """the id of the environment"""
     total_timesteps: int = 500000
     """total timesteps of the experiments"""
-    learning_rate: float = 3e-4
+    learning_rate: float = 1e-3
     """the learning rate of the optimizer"""
     num_envs: int = 1
     """the number of parallel game environments"""
-    num_steps: int = 8192
+    num_steps: int = 512
     """the number of steps to run in each environment per policy rollout"""
     anneal_lr: bool = False
     """Toggle learning rate annealing for policy and value networks"""
@@ -86,9 +89,9 @@ class Args:
     """the discount factor gamma"""
     gae_lambda: float = 0.95
     """the lambda for the general advantage estimation"""
-    num_minibatches: int = 32
+    num_minibatches: int = 8
     """the number of mini-batches"""
-    update_epochs: int = 20
+    update_epochs: int = 8
     """the K epochs to update the policy"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
@@ -225,6 +228,8 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
 
 def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, learning_rate=1.0, eps=0.1):
     diff = np.clip(returns_ref - returns, 0, np.inf)
+    # print(f"diff: {diff}")
+    # print(f"returns: {returns}")
 
     # Exponentiated gradient update
     w_new = w * np.exp(learning_rate * diff)
@@ -351,6 +356,12 @@ if __name__ == "__main__":
         dones_list.append(dones)
         values_list.append(values)
 
+    # Temporary Settings to make sure Actors and Critics are shared
+    if args.shared_nn:
+        for i in range(num_tasks):
+            assert envs_list[i].single_observation_space == envs_list[0].single_observation_space
+            assert envs_list[i].single_action_space == envs_list[0].single_action_space
+
     # TRY NOT TO MODIFY: start the game
     global_step = 0
     update_count = 0
@@ -375,8 +386,6 @@ if __name__ == "__main__":
 
     next_obs = next_obs_list[task_id]
     next_done = next_done_list[task_id]
-    agent = agent_list[task_id]
-    optimizer = optimizer_list[task_id]
     obs = obs_list[task_id]
     actions = actions_list[task_id]
     logprobs = logprobs_list[task_id]
@@ -384,20 +393,10 @@ if __name__ == "__main__":
     dones = dones_list[task_id]
     values = values_list[task_id]
 
-    for iteration in range(1, args.num_iterations + 1):
-        task_id = np.random.choice(np.arange(num_tasks), p=task_probs)
-        envs = envs_list[task_id]
-        next_obs = next_obs_list[task_id]
-        next_done = next_done_list[task_id]
+    agent = agent_list[task_id]
+    optimizer = optimizer_list[task_id]
 
-        agent = agent_list[task_id]
-        optimizer = optimizer_list[task_id]
-        obs = obs_list[task_id]
-        actions = actions_list[task_id]
-        logprobs = logprobs_list[task_id]
-        rewards = rewards_list[task_id]
-        dones = dones_list[task_id]
-        values = values_list[task_id]
+    for iteration in range(1, args.num_iterations + 1):
 
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
@@ -436,6 +435,22 @@ if __name__ == "__main__":
                             training_returns[task_id].append(np.mean(info['is_success']))
                         else:
                             training_returns[task_id].append(np.mean(info["episode"]["r"]))
+
+                    task_id = np.random.choice(np.arange(num_tasks), p=task_probs)
+                    envs = envs_list[task_id]
+                    next_obs = next_obs_list[task_id]
+                    next_done = next_done_list[task_id]
+
+                    obs = obs_list[task_id]
+                    actions = actions_list[task_id]
+                    logprobs = logprobs_list[task_id]
+                    rewards = rewards_list[task_id]
+                    dones = dones_list[task_id]
+                    values = values_list[task_id]
+
+                    if not args.shared_nn:
+                        agent = agent_list[task_id]
+                        optimizer = optimizer_list[task_id]
 
             # Update task sampling probabilities
             if args.dro and global_step % args.dro_num_steps == 0:
