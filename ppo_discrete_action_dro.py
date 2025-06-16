@@ -60,17 +60,18 @@ class Args:
     eval_episodes: int = 100
     """Number of trajectories to collect during each evaluation"""
 
-    task_probs_init: List[float] = field(default_factory=lambda: [1/4 for i in range(4)])
+    task_probs_init: List[float] = field(default_factory=lambda: [1/5 for i in range(5)])
     dro: bool = False
     dro_num_steps: int = 128
     dro_learning_rate: float = 1.0
     dro_eps: float = 0.01
+    dro_success_ref: bool = False
 
     linear: bool = True
     """Use a linear actor/critic network"""
 
     # Algorithm specific arguments
-    env_ids: List[str] = field(default_factory=lambda: [f"GridWorldEnv{i}-v0" for i in range(1, 4+1)])
+    env_ids: List[str] = field(default_factory=lambda: [f"Bandit{i}-v0" for i in range(1, 5+1)])
     # env_ids: List[str] = field(default_factory=lambda: [f"BanditEasy-v0", "BanditHard-v0"])
     """the id of the environment"""
     total_timesteps: int = 128 * 1000
@@ -233,7 +234,6 @@ def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, lear
     w_uniform = 1/len(w_new) * np.ones(len(w_new))
     w_new = (1 - eps) * w_new + eps * w_uniform
 
-
     return w_new
 
 if __name__ == "__main__":
@@ -340,7 +340,6 @@ if __name__ == "__main__":
     start_time = time.time()
     logs = defaultdict(lambda: [])
 
-    # first_reset = np.zeros(num_tasks, dtype=bool)
     training_returns = [[] for i in range(num_tasks)]
 
     next_obs_list = []
@@ -394,7 +393,10 @@ if __name__ == "__main__":
                         # writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         # writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
                         # training_returns[task_id].append(np.mean(info["episode"]["r"]))
-                        training_returns[task_id].append(np.mean(info['is_success']))
+                        if args.dro_success_ref:
+                            training_returns[task_id].append(np.mean(info['is_success']))
+                        else:
+                            training_returns[task_id].append(np.mean(info["episode"]["r"]))
 
                         task_id = np.random.choice(np.arange(num_tasks), p=task_probs)
                         envs = envs_list[task_id]
