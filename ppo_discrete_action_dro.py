@@ -74,9 +74,9 @@ class Args:
     env_ids: List[str] = field(default_factory=lambda: [f"Bandit{i}-v0" for i in range(1, 5+1)])
     # env_ids: List[str] = field(default_factory=lambda: [f"BanditEasy-v0", "BanditHard-v0"])
     """the id of the environment"""
-    total_timesteps: int = 128 * 300
+    total_timesteps: int = 128 * 1000
     """total timesteps of the experiments"""
-    learning_rate: float = 3e-4
+    learning_rate: float = 1e-2
     """the learning rate of the optimizer"""
     num_envs: int = 1
     """the number of parallel game environments"""
@@ -191,14 +191,14 @@ class Agent(nn.Module):
 
         else:
             self.critic = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1), std=0.01),
+                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1)),
                 nn.Tanh(),
                 layer_init(nn.Linear(64, 64)),
                 nn.Tanh(),
                 layer_init(nn.Linear(64, 1), std=0.01),
             )
             self.actor = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n), std=0.01),
+                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n)),
                 nn.Tanh(),
                 layer_init(nn.Linear(64, 64)),
                 nn.Tanh(),
@@ -233,7 +233,6 @@ def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, lear
     # Smoothing to prevent weights form getting too close to 0
     w_uniform = 1/len(w_new) * np.ones(len(w_new))
     w_new = (1 - eps) * w_new + eps * w_uniform
-
 
     return w_new
 
@@ -341,7 +340,6 @@ if __name__ == "__main__":
     start_time = time.time()
     logs = defaultdict(lambda: [])
 
-    # first_reset = np.zeros(num_tasks, dtype=bool)
     training_returns = [[] for i in range(num_tasks)]
 
     next_obs_list = []

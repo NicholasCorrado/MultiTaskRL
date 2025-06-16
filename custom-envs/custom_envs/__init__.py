@@ -25,9 +25,22 @@ register(
     max_episode_steps=1,
 )
 
+register(
+    id="GridWorldEnv-v0",
+    entry_point="custom_envs.envs.gridworld:GridWorldEnv",
+)
+
 for i in range(1, 6):
     register(
         id=f"Bandit{i}-v0",
         entry_point=f"custom_envs.envs.bandit:Bandit{i}",
         max_episode_steps=1,
+    )
+
+
+for i in range(1, 5):
+    register(
+        id=f"GridWorldEnv{i}-v0",
+        entry_point=f"custom_envs.envs.gridworld:GridWorldEnv{i}",
+        max_episode_steps=10,
     )

@@ -2,6 +2,7 @@ from typing import Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
+from sympy.codegen.ast import float64
 
 
 class GridWorldEnv(gym.Env):
@@ -10,7 +11,9 @@ class GridWorldEnv(gym.Env):
 
         self.shape = np.array(shape)
         self.action_space = gym.spaces.Discrete(4)
-        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(np.product(self.shape),))
+
+        obs_dim = 4 + shape[0] * shape[1]
+        self.observation_space = gym.spaces.Box(low=np.zeros(obs_dim), high=np.ones(obs_dim), shape=(obs_dim,))
 
         self.nrows, self.ncols = self.shape
         self.rowcol = (self.shape-1)/2
@@ -26,13 +29,15 @@ class GridWorldEnv(gym.Env):
         self.terminals[self.rewards > 0] = True
         # self.terminals[self.rewards > 0.02] = True
 
+        self.task_id = np.zeros(4)
+
         print(self.rewards)
         print(self.terminals)
 
 
     def _rowcol_to_obs(self, rowcol):
         idx = int(rowcol[0] * self.shape[0] + rowcol[1])
-        state = np.zeros(self.observation_space.shape[-1])
+        state = np.zeros(self.shape[0] * self.shape[1])
         state[idx] = 1
         return state
 
@@ -58,7 +63,7 @@ class GridWorldEnv(gym.Env):
         truncated = False
         info = {'is_success': reward == self.opt_reward}
 
-        return state, reward, terminated, truncated, info
+        return np.concatenate([self.task_id, state]), reward, terminated, truncated, info
 
     def reset(
         self,
@@ -69,55 +74,55 @@ class GridWorldEnv(gym.Env):
         self.rowcol = self.init_rowcol.copy()
         state = self._rowcol_to_obs(self.rowcol)
 
-        return state, {}
+        return np.concatenate([self.task_id, state]), {}
 
+class GridWorldEnv1(GridWorldEnv):
+    def __init__(self, shape=(9, 9), rewards=(-0.01, 0, 1)):
+        super().__init__(shape=(9, 9), rewards=(-0.01, 0, 1))
+        obs_dim = 4 + shape[0] * shape[1]
+        self.observation_space = gym.spaces.Box(low=np.zeros(obs_dim), high=np.ones(obs_dim), shape=(obs_dim,))
 
-class GridWorld2Env(GridWorldEnv):
-    def __init__(self, shape=(5,5), rewards=(-0.01, 0.1, 1)):
-        super().__init__(shape, rewards)
+        self.task_id = np.zeros(4)
+        self.task_id[0] = 1
 
-        self.shape = np.array(shape)
-        self.action_space = gym.spaces.Discrete(4)
-        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(np.product(self.shape),))
-
-        self.nrows, self.ncols = self.shape
-        self.rowcol = (self.shape-1)/2
-        self.init_rowcol = (self.shape-1)/2 # agent starts in middle of the grid.
-
-        self.rewards = rewards[0] * np.ones(shape=self.shape)
-        self.rewards[:3, :3] = 0.01
-        self.rewards[2, 2] = rewards[0]
-        self.rewards[0, 0] = rewards[1] # subopt
-        self.rewards[self.nrows-1, self.ncols-1] = rewards[2]
-
+        self.rewards[:, :] = np.zeros((9, 9))
+        self.rewards[3, 3] = 1.0
 
         self.terminals = np.zeros(shape=self.shape, dtype=bool)
-        self.terminals[self.rewards > 0.1] = True
+        self.terminals[self.rewards > 0] = True
 
-        print(self.rewards)
-        print(self.terminals)
+class GridWorldEnv2(GridWorldEnv):
+    def __init__(self, shape=(9, 9), rewards=(-0.01, 0, 1)):
+        super().__init__(shape=(9, 9), rewards=(-0.01, 0, 1))
+        self.task_id = np.zeros(4)
+        self.task_id[1] = 1
 
-
-class GridWorldContinuingEnv(GridWorldEnv):
-    def __init__(self, shape=(5,5)):
-        super().__init__()
-        self.terminals = np.zeros(shape=self.shape, dtype=bool)
-        print(self.rewards)
-        print(self.terminals)
-
-class GridWorldCliffEnv(GridWorldEnv):
-    def __init__(self, shape=(5,5)):
-        super().__init__(shape)
-        self.shape = np.array(shape)
-        self.action_space = gym.spaces.Discrete(4)
-        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(np.product(self.shape),))
-
-        self.rewards[:, :] = -1
-        self.rewards[self.nrows-1, 1:self.ncols-1] = -100 # cliff
-        self.rewards[self.nrows-1, self.ncols-1] = 0 # goal
+        self.rewards[:, :] = np.zeros((9, 9))
+        self.rewards[2, 6] = 1.0
 
         self.terminals = np.zeros(shape=self.shape, dtype=bool)
-        self.terminals[self.nrows-1, 1:] = True # goal state
+        self.terminals[self.rewards > 0] = True
 
-        print(self.rewards)
-        print(self.terminals)
+class GridWorldEnv3(GridWorldEnv):
+    def __init__(self, shape=(9, 9), rewards=(-0.01, 0, 1)):
+        super().__init__(shape=(9, 9), rewards=(-0.01, 0, 1))
+        self.task_id = np.zeros(4)
+        self.task_id[2] = 1
+
+        self.rewards[:, :] = np.zeros((9, 9))
+        self.rewards[7, 7] = 1.0
+
+        self.terminals = np.zeros(shape=self.shape, dtype=bool)
+        self.terminals[self.rewards > 0] = True
+
+class GridWorldEnv4(GridWorldEnv):
+    def __init__(self, shape=(9, 9), rewards=(-0.01, 0, 1)):
+        super().__init__(shape=(9, 9), rewards=(-0.01, 0, 1))
+        self.task_id = np.zeros(4)
+        self.task_id[3] = 1
+
+        self.rewards[:, :] = np.zeros((9, 9))
+        self.rewards[8, 0] = 1.0
+
+        self.terminals = np.zeros(shape=self.shape, dtype=bool)
+        self.terminals[self.rewards > 0] = True
