@@ -381,7 +381,7 @@ if __name__ == "__main__":
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
-            next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
+            next_obs, next_done, terminations = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device), torch.Tensor(terminations)
 
             next_obs_list[task_id] = next_obs
             next_done_list[task_id] = next_done
@@ -416,12 +416,12 @@ if __name__ == "__main__":
 
         # bootstrap value if not done
         with torch.no_grad():
-            next_value = agent.get_value(next_obs).reshape(1, -1)
+            next_value = values[-1].reshape(1, -1)
             advantages = torch.zeros_like(rewards).to(device)
             lastgaelam = 0
             for t in reversed(range(args.num_steps)):
                 if t == args.num_steps - 1:
-                    nextnonterminal = 1.0 - next_done
+                    nextnonterminal = 1.0 - terminations
                     nextvalues = next_value
                 else:
                     nextnonterminal = 1.0 - dones[t + 1]
