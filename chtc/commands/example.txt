@@ -1,6 +1,0 @@
-1,10,python ppo_continuous_action.py --env_id Swimmer-v5 --learning_rate 0.0003 --num_steps 8192 --output_subdir lr_0.0003/ns_8192 --total_timesteps 1000000
-1,10,python ppo_continuous_action.py --env_id Swimmer-v5 --learning_rate 0.001 --num_steps 8192 --output_subdir lr_0.001/ns_8192 --total_timesteps 1000000
-1,10,python ppo_continuous_action.py --env_id Hopper-v5 --learning_rate 0.0003 --num_steps 8192 --output_subdir lr_0.0003/ns_8192 --total_timesteps 1000000
-1,10,python ppo_continuous_action.py --env_id Hopper-v5 --learning_rate 0.001 --num_steps 8192 --output_subdir lr_0.001/ns_8192 --total_timesteps 1000000
-1,10,python ppo_continuous_action.py --env_id HalfCheetah-v5 --learning_rate 0.0003 --num_steps 8192 --output_subdir lr_0.0003/ns_8192 --total_timesteps 1000000
-1,10,python ppo_continuous_action.py --env_id HalfCheetah-v5 --learning_rate 0.001 --num_steps 8192 --output_subdir lr_0.001/ns_8192 --total_timesteps 1000000

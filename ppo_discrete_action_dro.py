@@ -60,7 +60,7 @@ class Args:
     eval_episodes: int = 100
     """Number of trajectories to collect during each evaluation"""
 
-    task_probs_init: List[float] = field(default_factory=lambda: [1/5 for i in range(5)])
+    task_probs_init: List[float] = None
     dro: bool = False
     dro_num_steps: int = 128
     dro_learning_rate: float = 1.0

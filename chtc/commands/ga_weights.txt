@@ -1,3 +1,0 @@
-0.3,0.1,python ppo_discrete_action_multitask_change_weights.py --total_timesteps 1000000 --w_learning_rate 1.0
-0.3,0.1,python ppo_discrete_action_multitask_change_weights.py --total_timesteps 1000000 --w_learning_rate 0.1
-0.3,0.1,python ppo_discrete_action_multitask_change_weights.py --total_timesteps 1000000 --w_learning_rate 0.01
