@@ -15,6 +15,7 @@ import torch.optim as optim
 import tyro
 import yaml
 from stable_baselines3.common.utils import get_latest_run_id
+from torch.distributions.normal import Normal
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
@@ -67,20 +68,20 @@ class Args:
     dro_eps: float = 0.01
     dro_success_ref: bool = False
 
-    linear: bool = True
+    linear: bool = False
     """Use a linear actor/critic network"""
 
     # Algorithm specific arguments
     env_ids: List[str] = field(default_factory=lambda: [f"Bandit{i}-v0" for i in range(1, 5+1)])
     # env_ids: List[str] = field(default_factory=lambda: [f"BanditEasy-v0", "BanditHard-v0"])
     """the id of the environment"""
-    total_timesteps: int = 128 * 1000
+    total_timesteps: int = 1000000
     """total timesteps of the experiments"""
-    learning_rate: float = 1e-2
+    learning_rate: float = 3e-4
     """the learning rate of the optimizer"""
     num_envs: int = 1
     """the number of parallel game environments"""
-    num_steps: int = 128
+    num_steps: int = 2048
     """the number of steps to run in each environment per policy rollout"""
     anneal_lr: bool = False
     """Toggle learning rate annealing for policy and value networks"""
@@ -88,9 +89,9 @@ class Args:
     """the discount factor gamma"""
     gae_lambda: float = 0.95
     """the lambda for the general advantage estimation"""
-    num_minibatches: int = 1
+    num_minibatches: int = 32
     """the number of mini-batches"""
-    update_epochs: int = 1
+    update_epochs: int = 10
     """the K epochs to update the policy"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
@@ -157,7 +158,7 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
     success_std = np.std(logs['successes'])
     return return_avg, return_std, success_avg, success_std
 
-def make_env(env_id, idx, capture_video, run_name):
+def make_env(env_id, idx, capture_video, run_name, gamma):
 
     def thunk():
         if capture_video and idx == 0:
@@ -165,7 +166,13 @@ def make_env(env_id, idx, capture_video, run_name):
             env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
         else:
             env = gym.make(env_id)
+        env = gym.wrappers.FlattenObservation(env)  # deal with dm_control's Dict observation space
         env = gym.wrappers.RecordEpisodeStatistics(env)
+        env = gym.wrappers.ClipAction(env)
+        env = gym.wrappers.NormalizeObservation(env)
+        env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10))
+        env = gym.wrappers.NormalizeReward(env, gamma=gamma)
+        env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10))
         return env
 
     return thunk
@@ -178,46 +185,41 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 
 class Agent(nn.Module):
-    def __init__(self, envs, linear=True):
+    def __init__(self, envs, linear=False):
         super().__init__()
-
-        if linear:
-            self.critic = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1), std=0.01),
-            )
-            self.actor = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n), std=0.01),
-            )
-
-        else:
-            self.critic = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 64)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 1), std=0.01),
-            )
-            self.actor = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 64)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01),
-            )
+        self.critic = nn.Sequential(
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 1), std=1.0),
+        )
+        self.actor_mean = nn.Sequential(
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, np.prod(envs.single_action_space.shape)), std=0.01),
+        )
+        self.actor_logstd = nn.Parameter(torch.zeros(1, np.prod(envs.single_action_space.shape)))
 
     def get_value(self, x):
         return self.critic(x)
 
     def get_action_and_value(self, x, action=None):
-        logits = self.actor(x)
-        probs = Categorical(logits=logits)
+        action_mean = self.actor_mean(x)
+        action_logstd = self.actor_logstd.expand_as(action_mean)
+        action_std = torch.exp(action_logstd)
+        probs = Normal(action_mean, action_std)
         if action is None:
             action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(x)
+        return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(x)
 
-    def get_action(self, x, sample=True):
-        logits = self.actor(x)
-        probs = Categorical(logits=logits)
+    def get_action(self, x, sample=False):
+        action_mean = self.actor_mean(x)
+        action_logstd = self.actor_logstd.expand_as(action_mean)
+        action_std = torch.exp(action_logstd)
+        probs = Normal(action_mean, action_std)
         action = probs.sample()
         return action
 
@@ -305,10 +307,10 @@ if __name__ == "__main__":
     for task_id in range(num_tasks):
         print(args.env_ids[task_id])
         envs = gym.vector.SyncVectorEnv(
-            [make_env(args.env_ids[task_id], i, args.capture_video, run_name) for i in range(args.num_envs)],
+            [make_env(args.env_ids[task_id], i, args.capture_video, run_name, gamma = args.gamma) for i in range(args.num_envs)],
         )
         envs_eval = gym.vector.SyncVectorEnv(
-            [make_env(args.env_ids[task_id], i, args.capture_video, run_name) for i in range(1)],
+            [make_env(args.env_ids[task_id], i, args.capture_video, run_name, gamma = args.gamma) for i in range(1)],
         )
 
         envs_list.append(envs)
@@ -321,7 +323,7 @@ if __name__ == "__main__":
 
     task_weights = np.ones(num_tasks) / num_tasks
 
-    assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
+    assert isinstance(envs.single_action_space, gym.spaces.Box), "only discrete action space is supported"
 
     agent = Agent(envs, linear=args.linear).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -417,6 +419,7 @@ if __name__ == "__main__":
         # bootstrap value if not done
         with torch.no_grad():
             next_value = values[-1].reshape(1, -1)
+            # next_value = agent.get_value(next_obs).reshape(1, -1)
             advantages = torch.zeros_like(rewards).to(device)
             lastgaelam = 0
             for t in reversed(range(args.num_steps)):

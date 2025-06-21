@@ -44,3 +44,10 @@ for i in range(1, 5):
         entry_point=f"custom_envs.envs.gridworld:GridWorldEnv{i}",
         max_episode_steps=10,
     )
+
+for i in range(1, 5):
+    register(
+        id=f"Goal2D{i}-v0",
+        entry_point=f"custom_envs.envs.goal2d:Goal2D{i}Env",
+        max_episode_steps=50,
+    )
