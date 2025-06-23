@@ -84,75 +84,20 @@ class Goal2DQuadrantEnv(Goal2DEnv):
 
 class Goal2D1Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.1, sparse=1, quadrant=True, center=False, fixed_goal=False)
+        super().__init__(delta = 0.1, sparse=0, quadrant=False, center=False, fixed_goal=False)
         self.task_id = [1, 0, 0, 0]
-
-    def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        options: Optional[dict] = None,
-    ):
-        self.x = [0.0, 0.0]
-        self.step_num = 0
-        self.goal = self._sample_goal()
-
-        self.obs = np.concatenate((self.x, self.goal))
-        return self._get_obs(), {}
-
 
 class Goal2D2Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.04, sparse=1, quadrant=True, center=False, fixed_goal=False)
+        super().__init__(delta = 0.04, sparse=0, quadrant=False, center=False, fixed_goal=False)
         self.task_id = [0, 1, 0, 0]
-
-    def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        options: Optional[dict] = None,
-    ):
-        self.x = [0.0, 0.0]
-        self.step_num = 0
-        self.goal = self._sample_goal()
-
-        self.obs = np.concatenate((self.x, self.goal))
-        return self._get_obs(), {}
-
 
 class Goal2D3Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.02, sparse=1, quadrant=True, center=False, fixed_goal=False)
+        super().__init__(delta = 0.02, sparse=0, quadrant=False, center=False, fixed_goal=False)
         self.task_id = [0, 0, 1, 0]
-
-    def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        options: Optional[dict] = None,
-    ):
-        self.x = [0.0, 0.0]
-        self.step_num = 0
-        self.goal = self._sample_goal()
-
-        self.obs = np.concatenate((self.x, self.goal))
-        return self._get_obs(), {}
-
 
 class Goal2D4Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.01, sparse=1, quadrant=True, center=False, fixed_goal=False)
+        super().__init__(delta = 0.01, sparse=0, quadrant=False, center=False, fixed_goal=False)
         self.task_id = [0, 0, 0, 1]
-
-    def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        options: Optional[dict] = None,
-    ):
-        self.x = [0.0, 0.0]
-        self.step_num = 0
-        self.goal = self._sample_goal()
-
-        self.obs = np.concatenate((self.x, self.goal))
-        return self._get_obs(), {}
