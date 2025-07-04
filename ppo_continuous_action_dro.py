@@ -67,6 +67,7 @@ class Args:
     dro_learning_rate: float = 1.0
     dro_eps: float = 0.01
     dro_success_ref: bool = True
+    dro_easy_first: bool = False
 
     linear: bool = False
     """Use a linear actor/critic network"""
@@ -225,6 +226,8 @@ class Agent(nn.Module):
 
 def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, learning_rate=1.0, eps=0.1):
     diff = np.clip(returns_ref - returns, 0, np.inf)
+    if args.dro_easy_first:
+        diff *= -1.0
 
     # Exponentiated gradient update
     w_new = w * np.exp(learning_rate * diff)

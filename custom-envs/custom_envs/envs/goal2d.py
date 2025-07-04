@@ -2,6 +2,7 @@ from typing import Optional
 
 import gymnasium as gym
 import numpy as np
+import torch
 
 class Goal2DEnv(gym.Env):
     def __init__(self, delta=0.1, sparse=1, quadrant=False, center=False, fixed_goal=None):
@@ -101,3 +102,33 @@ class Goal2D4Env(Goal2DEnv):
     def __init__(self):
         super().__init__(delta = 0.01, sparse=0, quadrant=False, center=False, fixed_goal=False)
         self.task_id = [0, 0, 0, 1]
+
+class Goal2DEasyEnv(Goal2DEnv):
+    def __init__(self):
+        super().__init__(delta = 0.1, sparse=0, quadrant=False, center=False, fixed_goal=False)
+        self.task_id = [1, 0, 0, 0]
+
+class Goal2DHardEnv(Goal2DEnv):
+    def __init__(self):
+        super().__init__(delta = 0.02, sparse=0, quadrant=False, center=False, fixed_goal=False)
+        self.task_id = [0, 0, 0, 1]
+
+    def step(self, a):
+
+        a = np.array([a[1], a[0]])
+        self.step_num += 1
+        self.x += a * self.delta
+        self._clip_position()
+
+        dist = np.linalg.norm(self.x - self.goal)
+        terminated = dist < 0.1
+        truncated = False
+
+        if self.sparse:
+            reward = +1.0 if terminated else -0.1
+        else:
+            reward = -dist
+
+        info = {'is_success': terminated}
+        self.obs = np.concatenate((self.x, self.goal))
+        return self._get_obs(), reward, terminated, truncated, info

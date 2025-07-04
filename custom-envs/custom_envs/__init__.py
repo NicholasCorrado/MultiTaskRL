@@ -51,3 +51,15 @@ for i in range(1, 5):
         entry_point=f"custom_envs.envs.goal2d:Goal2D{i}Env",
         max_episode_steps=300,
     )
+
+register(
+    id=f"Goal2DEasy-v0",
+    entry_point=f"custom_envs.envs.goal2d:Goal2DEasyEnv",
+    max_episode_steps=300,
+)
+
+register(
+    id=f"Goal2DHard-v0",
+    entry_point=f"custom_envs.envs.goal2d:Goal2DHardEnv",
+    max_episode_steps=300,
+)
