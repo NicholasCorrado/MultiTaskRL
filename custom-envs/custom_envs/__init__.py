@@ -63,3 +63,10 @@ register(
     entry_point=f"custom_envs.envs.goal2d:Goal2DHardEnv",
     max_episode_steps=40,
 )
+
+for i in range(1, 4):
+    register(
+        id=f"PointMaze{i}-v0",
+        entry_point=f"custom_envs.envs.pointmaze:PointMazeEnv{i}",
+        max_episode_steps=100,
+    )
