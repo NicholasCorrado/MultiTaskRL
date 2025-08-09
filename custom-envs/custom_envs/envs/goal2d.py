@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 class Goal2DEnv(gym.Env):
-    def __init__(self, delta=0.1, sparse=1, quadrant=False, center=False, fixed_goal=None):
+    def __init__(self, delta=0.1, sparse=1, quadrant=False, center=False, fixed_goal=None, goal_size=0.1, rotate_action=False):
 
         self.n = 2
         self.action_space = gym.spaces.Box(low=-1*np.ones(2), high=np.ones(2), shape=(self.n,))
@@ -27,6 +27,8 @@ class Goal2DEnv(gym.Env):
         self.center = center
         self.fixed_goal = fixed_goal
         self.task_id = [0, 0, 0, 0]
+        self.goal_size = goal_size
+        self.rotate_action = rotate_action
         super().__init__()
 
     def _clip_position(self):
@@ -35,12 +37,15 @@ class Goal2DEnv(gym.Env):
 
     def step(self, a):
 
+        if self.rotate_action:
+            a = np.array([a[1], a[0]])
+
         self.step_num += 1
         self.x += a * self.delta
         self._clip_position()
 
         dist = np.linalg.norm(self.x - self.goal)
-        terminated = dist < 0.1
+        terminated = dist < self.goal_size
         truncated = False
 
         if self.sparse:
@@ -85,50 +90,30 @@ class Goal2DQuadrantEnv(Goal2DEnv):
 
 class Goal2D1Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.1, sparse=0, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.4, sparse=0, quadrant=False, center=False, fixed_goal=False, goal_size=0.1)
         self.task_id = [1, 0, 0, 0]
 
 class Goal2D2Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.04, sparse=0, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.4, sparse=0, quadrant=False, center=False, fixed_goal=False, goal_size=0.05)
         self.task_id = [0, 1, 0, 0]
 
 class Goal2D3Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.02, sparse=0, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.4, sparse=0, quadrant=False, center=False, fixed_goal=False, goal_size=0.025, rotate_action=True)
         self.task_id = [0, 0, 1, 0]
 
 class Goal2D4Env(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.01, sparse=0, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.4, sparse=0, quadrant=False, center=False, fixed_goal=False, goal_size=0.01, rotate_action=True)
         self.task_id = [0, 0, 0, 1]
 
 class Goal2DEasyEnv(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.1, sparse=0, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.4, sparse=0, quadrant=False, center=False, fixed_goal=False, goal_size=0.1)
         self.task_id = [1, 0, 0, 0]
 
 class Goal2DHardEnv(Goal2DEnv):
     def __init__(self):
-        super().__init__(delta = 0.02, sparse=0, quadrant=False, center=False, fixed_goal=False)
+        super().__init__(delta = 0.4, sparse=0, quadrant=False, center=False, fixed_goal=False, goal_size=0.01, rotate_action=True)
         self.task_id = [0, 0, 0, 1]
-
-    def step(self, a):
-
-        a = np.array([a[1], a[0]])
-        self.step_num += 1
-        self.x += a * self.delta
-        self._clip_position()
-
-        dist = np.linalg.norm(self.x - self.goal)
-        terminated = dist < 0.1
-        truncated = False
-
-        if self.sparse:
-            reward = +1.0 if terminated else -0.1
-        else:
-            reward = -dist
-
-        info = {'is_success': terminated}
-        self.obs = np.concatenate((self.x, self.goal))
-        return self._get_obs(), reward, terminated, truncated, info
