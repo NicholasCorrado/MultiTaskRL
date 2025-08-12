@@ -20,8 +20,11 @@ def get_obs(obs, task_id):
 
 class PointMazeEnv1(gym.Env):
     def __init__(self):
+        example_map = [[1, 1, 1, 1, 1],
+                       [1, 0, 0, 0, 1],
+                       [1, 1, 1, 1, 1]]
 
-        self.env = gym.make('PointMaze_Open-v3')
+        self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
         self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
                                                 np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
@@ -35,6 +38,8 @@ class PointMazeEnv1(gym.Env):
 
         obs, reward, terminations, truncations, infos = self.env.step(a)
         next_obs, infos = get_obs_info(obs, infos, self.task_id)
+        if infos.get("success", False):
+            terminations = True
 
         return next_obs, reward, terminations, truncations, infos
 
@@ -53,8 +58,13 @@ class PointMazeEnv1(gym.Env):
 
 class PointMazeEnv2(gym.Env):
     def __init__(self):
+        example_map = [[1, 1, 1, 1, 1],
+                       [1, 0, 0, 0, 1],
+                       [1, 0, 0, 0, 1],
+                       [1, 0, 0, 0, 1],
+                       [1, 1, 1, 1, 1]]
 
-        self.env = gym.make('PointMaze_Medium-v3')
+        self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
         self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
                                                 np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
@@ -68,6 +78,8 @@ class PointMazeEnv2(gym.Env):
 
         obs, reward, terminations, truncations, infos = self.env.step(a)
         next_obs, infos = get_obs_info(obs, infos, self.task_id)
+        if infos.get("success", False):
+            terminations = True
 
         return next_obs, reward, terminations, truncations, infos
 
@@ -86,8 +98,13 @@ class PointMazeEnv2(gym.Env):
 
 class PointMazeEnv3(gym.Env):
     def __init__(self):
+        example_map = [[1, 1, 1, 1, 1],
+                       [1, 0, 0, 0, 1],
+                       [1, 1, 1, 0, 1],
+                       [1, 0, 0, 0, 1],
+                       [1, 1, 1, 1, 1]]
 
-        self.env = gym.make('PointMaze_Large-v3')
+        self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
         self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
                                                 np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
@@ -101,6 +118,8 @@ class PointMazeEnv3(gym.Env):
 
         obs, reward, terminations, truncations, infos = self.env.step(a)
         next_obs, infos = get_obs_info(obs, infos, self.task_id)
+        if infos.get("success", False):
+            terminations = True
 
         return next_obs, reward, terminations, truncations, infos
 

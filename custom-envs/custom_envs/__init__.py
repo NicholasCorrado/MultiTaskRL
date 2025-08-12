@@ -64,9 +64,10 @@ register(
     max_episode_steps=40,
 )
 
+pointmaze_steps = [0, 100, 100, 150]
 for i in range(1, 4):
     register(
         id=f"PointMaze{i}-v0",
         entry_point=f"custom_envs.envs.pointmaze:PointMazeEnv{i}",
-        max_episode_steps=100,
+        max_episode_steps=pointmaze_steps[i],
     )

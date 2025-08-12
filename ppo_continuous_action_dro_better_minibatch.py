@@ -349,7 +349,6 @@ if __name__ == "__main__":
 
     # TRY NOT TO MODIFY: start the game
     global_step = 0
-    update_count = [0 for i in range(num_tasks)]
     start_time = time.time()
     logs = defaultdict(lambda: [])
 
@@ -376,7 +375,7 @@ if __name__ == "__main__":
     next_done = next_done_list[task_id]
 
     last_update_count = [0 for i in range(num_tasks)]
-
+    update_count = [0 for i in range(num_tasks)]
     success_count = [0 for i in range(num_tasks)]
 
     for global_step in range(1, args.num_iterations * args.num_steps + 1):
@@ -433,7 +432,10 @@ if __name__ == "__main__":
             training_returns_avg = np.array([np.mean(training_returns[i]) for i in range(num_tasks)])
             training_returns_avg = np.nan_to_num(training_returns_avg)
             # returns_ref = np.ones(num_tasks)
-            returns_ref = np.array([np.max(training_returns[i]) for i in range(num_tasks)])
+            returns_ref = np.array([
+                np.max(training_returns[i]) if len(training_returns[i]) > 0 else returns_ref[i]
+                for i in range(num_tasks)
+            ])
             # returns_ref[task_id] = 1
             task_probs = exponentiated_gradient_ascent_step(task_probs, training_returns_avg, returns_ref, task_probs,
                                                             learning_rate=args.dro_learning_rate, eps=args.dro_eps)
