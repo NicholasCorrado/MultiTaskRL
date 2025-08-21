@@ -66,12 +66,13 @@ class Args:
     """Number of trajectories to collect during each evaluation"""
 
     # DRO setting
-    task_probs_init: List[float] = field(default_factory=lambda: [1/4 for i in range(4)])
+    task_probs_init: List[float] = None
     dro: bool = False
-    dro_num_steps: int = 128
-    dro_learning_rate: float = 1.0
-    dro_eps: float = 0.01
-    dro_success_ref: bool = False
+    dro_num_steps: int = 8192
+    dro_learning_rate: float = 0.1
+    dro_eps: float = 0.1
+    dro_success_ref: bool = True
+    dro_easy_first: bool = False
 
     # Algorithm specific arguments
     env_ids: List[str] = field(default_factory=lambda: [f"Goal2D{i}-v0" for i in range(1, 4+1)])
@@ -205,6 +206,8 @@ class Actor(nn.Module):
 
 def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, learning_rate=1.0, eps=0.1):
     diff = np.clip(returns_ref - returns, 0, np.inf)
+    if args.dro_easy_first:
+        diff *= -1.0
 
     # Exponentiated gradient update
     w_new = w * np.exp(learning_rate * diff)
@@ -217,6 +220,7 @@ def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, lear
     w_new = (1 - eps) * w_new + eps * w_uniform
 
     return w_new
+
 
 def _get_obs_box (obs = None, num_task = 4):
     if isinstance(obs, gym.spaces.Dict) or isinstance(obs, OrderedDict):
