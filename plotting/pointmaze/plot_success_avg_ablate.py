@@ -67,7 +67,7 @@ if __name__ == "__main__":
     ax = plt.subplot(n_rows, n_cols, i)
     i+=1
 
-    task_name_dro, task_name_standard = "ppo_pointmaze_1", "ppo_pointmaze_1"
+    task_name_dro, task_name_standard = "ppo_pointmaze_2", "ppo_pointmaze_2"
     env_id_dro, env_id_standard = \
         "PointMaze1_PointMaze2_PointMaze3_PointMaze4_PointMaze5_PointMaze6_PointMaze7_PointMaze8", \
         "PointMaze1_PointMaze2_PointMaze3_PointMaze4_PointMaze5_PointMaze6_PointMaze7_PointMaze8"

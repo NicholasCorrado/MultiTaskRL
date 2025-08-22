@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     C = 1
 
-    task_name = "ppo_pointmaze_1"
+    task_name = "ppo_pointmaze_2"
     sub_dir_name_standard, sub_dir_name_dro = "no_dro", "success_ref"
     env_id = 'PointMaze1_PointMaze2_PointMaze3_PointMaze4_PointMaze5_PointMaze6_PointMaze7_PointMaze8'
 

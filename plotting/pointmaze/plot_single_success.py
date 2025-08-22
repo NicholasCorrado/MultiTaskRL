@@ -78,44 +78,43 @@ if __name__ == "__main__":
     #     linestyle_dict[key] = '-'
     #     color_dict[key] = next(color_palette)
 
-    key = f"PointMaze1"
-    results_dir = f"../../results/ppo_pointmaze_singletask/results/PointMaze1/ppo"
-    # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
+    for i in range(1, 5):
+        key = f"PointMaze{i}"
+        results_dir = f"../../results/ppo_pointmaze_singletask/results/PointMaze{i}/ppo"
+        # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
 
-    x, y = get_data(results_dir, y_name=f'success_rate')
-    T = len(x)
-    if y is not None:
-        x_dict[key] = x[:T]
-        y_dict[key] = y[:, :T]
-        linestyle_dict[key] = '-'
-        color_dict[key] = next(color_palette)
+        x, y = get_data(results_dir, y_name=f'success_rate')
+        T = len(x)
+        if y is not None:
+            x_dict[key] = x[:T]
+            y_dict[key] = y[:, :T]
+            linestyle_dict[key] = '-'
+            color_dict[key] = next(color_palette)
 
     # PointMaze2 AVERAGE #################################################################################################
-    key = f"PointMaze2"
-    results_dir = f"../../results/ppo_pointmaze_singletask/results/PointMaze2/ppo"
-    # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
-
-    x, y = get_data(results_dir, y_name=f'success_rate')
-    T = len(x)
-    if y is not None:
-        x_dict[key] = x[:T]
-        y_dict[key] = y[:, :T]
-        linestyle_dict[key] = '-'
-        color_dict[key] = next(color_palette)
+    # key = f"PointMaze2"
+    # results_dir = f"../../results/ppo_pointmaze_singletask/results/PointMaze2/ppo"
+    #
+    # x, y = get_data(results_dir, y_name=f'success_rate')
+    # T = len(x)
+    # if y is not None:
+    #     x_dict[key] = x[:T]
+    #     y_dict[key] = y[:, :T]
+    #     linestyle_dict[key] = '-'
+    #     color_dict[key] = next(color_palette)
 
     # PointMaze3 AVERAGE #################################################################################################
-    key = f"PointMaze3"
-    results_dir = f"../../results/ppo_pointmaze_singletask/results/PointMaze3/ppo"
-    # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
-
-    x, y = get_data(results_dir, y_name=f'success_rate')
-    T = len(x)
-    if y is not None:
-        x_dict[key] = x[:T]
-        y_dict[key] = y[:, :T]
-        linestyle_dict[key] = '-'
-        color_dict[key] = next(color_palette)
-
+    # key = f"PointMaze3"
+    # results_dir = f"../../results/ppo_pointmaze_singletask/results/PointMaze3/ppo"
+    #
+    # x, y = get_data(results_dir, y_name=f'success_rate')
+    # T = len(x)
+    # if y is not None:
+    #     x_dict[key] = x[:T]
+    #     y_dict[key] = y[:, :T]
+    #     linestyle_dict[key] = '-'
+    #     color_dict[key] = next(color_palette)
+    #
     plot(x[:T], y_dict, linestyle_dict, color_dict)
     x_dict, y_dict, linestyle_dict, color_dict = {}, {}, {}, {}
 
