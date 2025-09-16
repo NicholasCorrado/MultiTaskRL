@@ -68,6 +68,8 @@ class Args:
     dro_eps: float = 0.1
     dro_success_ref: bool = True
     dro_easy_first: bool = False
+    dro_td: bool = False
+    """Use the improvement between two DRO sampling as reference"""
 
     linear: bool = False
     """Use a linear actor/critic network"""
@@ -224,8 +226,11 @@ class Agent(nn.Module):
         action = probs.sample()
         return action
 
-def exponentiated_gradient_ascent_step(w, returns, returns_ref, task_probs, learning_rate=1.0, eps=0.1):
-    diff = np.clip(returns_ref - returns, 0, np.inf)
+def exponentiated_gradient_ascent_step(w, returns, returns_ref, previous_return_avg, task_probs, learning_rate=1.0, eps=0.1):
+    if args.dro_td:
+        diff = np.clip(returns - previous_return_avg, 0, np.inf)
+    else:
+        diff = np.clip(returns_ref - returns, 0, np.inf)
     if args.dro_easy_first:
         diff *= -1.0
 
@@ -364,6 +369,8 @@ if __name__ == "__main__":
     next_obs = next_obs_list[task_id]
     next_done = next_done_list[task_id]
 
+    previous_return_avg = np.zeros(num_tasks)
+
     for iteration in range(1, args.num_iterations + 1):
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
@@ -415,8 +422,9 @@ if __name__ == "__main__":
                 training_returns_avg = np.nan_to_num(training_returns_avg)
                 returns_ref = np.ones(num_tasks)
                 # returns_ref[task_id] = 1
-                task_probs = exponentiated_gradient_ascent_step(task_probs, training_returns_avg, returns_ref, task_probs,
+                task_probs = exponentiated_gradient_ascent_step(task_probs, training_returns_avg, returns_ref, previous_return_avg, task_probs,
                                                                 learning_rate=args.dro_learning_rate, eps=args.dro_eps)
+                previous_return_avg = training_returns_avg
                 training_returns = [[] for i in range(num_tasks)]
 
         # bootstrap value if not done

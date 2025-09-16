@@ -22,9 +22,7 @@ def get_obs(obs, task_id):
 class PointMazeEnv1(gym.Env):
     def __init__(self):
         example_map = [[1, 1, 1, 1, 1],
-                       [1, "r", 0, 0, 1],
-                       [1, 0, 0, 0, 1],
-                       [1, 0, 0, "g", 1],
+                       [1, "r", 0, "g", 1],
                        [1, 1, 1, 1, 1]]
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
@@ -61,15 +59,9 @@ class PointMazeEnv1(gym.Env):
 
 class PointMazeEnv2(gym.Env):
     def __init__(self):
-        example_map = [[1, 1, 1, 1, 1],
-                       [1, "r", 0, 0, 1],
-                       [1, 1, 1, 0, 1],
-                       [1, 0, 0, 0, 1],
-                       [1, 1, 1, 0, 1],
-                       [1, 0, 0, 0, 1],
-                       [1, 1, 1, 0, 1],
-                       [1, "g", 0, 0, 1],
-                       [1, 1, 1, 1, 1]]
+        example_map = [[1, 1, 1, 1, 1, 1, 1],
+                       [1, "r", 0, 0, 0, "g", 1],
+                       [1, 1, 1, 1, 1, 1, 1]]
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
@@ -104,16 +96,12 @@ class PointMazeEnv2(gym.Env):
 
 
 class PointMazeEnv3(gym.Env):
-    def __init__(self):
-        example_map = [[1, 1, 1, 1, 1, 1, 1, 1, 1],
-                       [1, "r", 0, 0, 0, 0, 0, 0, 1],
-                       [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                       [1, 0, 0, "r", 0, 0, 0, 0, 1],
-                       [1, 0, 0, 0, "g", 0, 0, 0, 1],
-                       [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                       [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                       [1, 0, 0, 0, 0, 0, 0, "g", 1],
-                       [1, 1, 1, 1, 1, 1, 1, 1, 1]]
+    def __init__(self): # batch_size=256, 372, 1024
+        example_map = [[1, 1, 1, 1, 1],
+                       [1, "r", 0, 0, 1],
+                       [1, 1, 1, 0, 1],
+                       [1, "g", 0, 0, 1],
+                       [1, 1, 1, 1,  1]]
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
@@ -149,15 +137,12 @@ class PointMazeEnv3(gym.Env):
 
 class PointMazeEnv4(gym.Env):
     def __init__(self):
-        example_map = [[1, 1, 1, 1, 1, 1, 1, 1, 1],
-                       [1, "r", 0, 0, 0, 0, 0, 0, 1],
-                       [1, 1, 1, 1, 1, 1, 1, 0, 1],
-                       [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                       [1, "r", 1, 1, 1, 1, 1, 1, 1],
-                       [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                       [1, 1, 1, 1, 1, 1, 1, "r", 1],
-                       [1, "g", 0, 0, 0, 0, 0, 0, 1],
-                       [1, 1, 1, 1, 1, 1, 1, 1, 1]]
+        example_map = [[1, 1, 1, 1, 1, 1],
+                       [1, "r", 0, 0, 0, 1],
+                       [1, 1, 1, 1, 0, 1],
+                       [1, 1, 1, 1, 0, 1],
+                       [1, "g", 0, 0, 0, 1],
+                       [1, 1, 1, 1, 1, 1,]]
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
