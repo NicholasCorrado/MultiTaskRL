@@ -69,6 +69,8 @@ class Args:
     dro_success_ref: bool = True
     dro_easy_first: bool = False
     dro_td: bool = False
+    dro_disc: float = 0.9
+    dro_disc_on: bool = False
     """Use the improvement between two DRO sampling as reference"""
 
     linear: bool = False
@@ -227,15 +229,22 @@ class Agent(nn.Module):
         return action
 
 def exponentiated_gradient_ascent_step(w, returns, returns_ref, previous_return_avg, task_probs, learning_rate=1.0, eps=0.1):
+    # Use s_t - s_{t-1} instead of s_ref - s_t
     if args.dro_td:
-        diff = np.clip(returns - previous_return_avg, 0, np.inf)
+        diff = np.clip(returns_ref - previous_return_avg, 0, np.inf)
     else:
         diff = np.clip(returns_ref - returns, 0, np.inf)
+
+    # Prioritize easy tasks (don't use it!)
     if args.dro_easy_first:
         diff *= -1.0
 
-    # Exponentiated gradient update
-    w_new = w * np.exp(learning_rate * diff)
+    # Add discount factor to early results
+    if args.dro_disc_on:
+        w_new = (w ** args.dro_disc) * np.exp(learning_rate * diff)
+    else:
+        # Exponentiated gradient update
+        w_new = w * np.exp(learning_rate * diff)
 
     # Normalize to ensure weights sum to 1
     w_new = w_new / w_new.sum()
@@ -369,6 +378,7 @@ if __name__ == "__main__":
     next_obs = next_obs_list[task_id]
     next_done = next_done_list[task_id]
 
+    # Buffer for the last data episode
     previous_return_avg = np.zeros(num_tasks)
 
     for iteration in range(1, args.num_iterations + 1):
@@ -417,13 +427,18 @@ if __name__ == "__main__":
 
             # Update task sampling probabilities
             if args.dro and global_step % args.dro_num_steps == 0:
-                # training_returns_avg = []
+                # Calculate the performance of this episode
                 training_returns_avg = np.array([np.mean(training_returns[i]) for i in range(num_tasks)])
                 training_returns_avg = np.nan_to_num(training_returns_avg)
+
+                # The return reference
                 returns_ref = np.ones(num_tasks)
-                # returns_ref[task_id] = 1
+
+                # Update the sampling probability
                 task_probs = exponentiated_gradient_ascent_step(task_probs, training_returns_avg, returns_ref, previous_return_avg, task_probs,
                                                                 learning_rate=args.dro_learning_rate, eps=args.dro_eps)
+
+                # Update the previous episode's performance
                 previous_return_avg = training_returns_avg
                 training_returns = [[] for i in range(num_tasks)]
 
