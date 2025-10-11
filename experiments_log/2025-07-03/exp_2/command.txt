@@ -1,0 +1,2 @@
+0.5,3,python ppo_continuous_action_dro.py --total_timesteps 2000000 --env_ids Goal2DEasy Goal2DHard
+0.5,3,python ppo_continuous_action_dro.py --dro --total_timesteps 2000000 --env_ids Goal2DEasy Goal2DHard --dro_easy_first

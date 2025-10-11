@@ -79,7 +79,7 @@ if __name__ == "__main__":
     #     color_dict[key] = next(color_palette)
 
     key = f"DRO with Success Gap"
-    results_dir = f"../../results/ppo_gridworld/success_ref/results/GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4/ppo"
+    results_dir = f"../../results/ppo_gridworld_1/success_ref/results/GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4/ppo"
     # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
 
     x, y = get_data(results_dir, y_name=f'success_rate')
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
     # STANDARD AVERAGE #################################################################################################
     key = f"Standard"
-    results_dir = f"../../results/ppo_gridworld/no_dro/results/GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4/ppo"
+    results_dir = f"../../results/ppo_gridworld_1/no_dro/results/GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4/ppo"
     # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
 
     x, y = get_data(results_dir, y_name=f'success_rate')

@@ -79,7 +79,7 @@ if __name__ == "__main__":
     #     color_dict[key] = next(color_palette)
 
     key = f"DRO with Success Gap"
-    results_dir = f"../../results/ppo_bandit/success_ref/results/Bandit1-v0_Bandit2-v0_Bandit3-v0_Bandit4-v0_Bandit5-v0/ppo"
+    results_dir = f"../../results/ppo_bandit_1/success_ref/results/Bandit1-v0_Bandit2-v0_Bandit3-v0_Bandit4-v0_Bandit5-v0/ppo"
     # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
 
     x, y = get_data(results_dir, y_name=f'success_rate')
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
     # STANDARD AVERAGE #################################################################################################
     key = f"Standard"
-    results_dir = f"../../results/ppo_bandit/no_dro/results/Bandit1-v0_Bandit2-v0_Bandit3-v0_Bandit4-v0_Bandit5-v0/ppo"
+    results_dir = f"../../results/ppo_bandit_1/no_dro/results/Bandit1-v0_Bandit2-v0_Bandit3-v0_Bandit4-v0_Bandit5-v0/ppo"
     # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
 
     x, y = get_data(results_dir, y_name=f'success_rate')
