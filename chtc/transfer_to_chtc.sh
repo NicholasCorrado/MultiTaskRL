@@ -13,6 +13,6 @@ tar --exclude="chtc" \
     --exclude='results_backup'  \
     --exclude='.venv'  \
     -czvf ${f}.tar.gz $f
-    
+
 scp ${f}.tar.gz whuang369@ap2001.chtc.wisc.edu:/staging/whuang369
 rm ${f}.tar.gz
