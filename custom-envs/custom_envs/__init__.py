@@ -71,3 +71,15 @@ for i in range(1, 11):
         entry_point=f"custom_envs.envs.pointmaze:PointMazeEnv{i}",
         max_episode_steps=pointmaze_steps[i],
     )
+
+register(
+    id="EasyGridWorldEnv-v0",
+    entry_point="custom_envs.envs.gridworld_origin:EasyGridWorldEnv",
+)
+
+for i in range(1, 5):
+    register(
+        id=f"EasyGridWorldEnv{i}-v0",
+        entry_point=f"custom_envs.envs.gridworld_origin:EasyGridWorldEnv{i}",
+        max_episode_steps=10,
+    )
