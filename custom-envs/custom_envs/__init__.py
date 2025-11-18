@@ -77,9 +77,10 @@ register(
     entry_point="custom_envs.envs.gridworld_origin:EasyGridWorldEnv",
 )
 
+easy_gridworld_steps = [6, 12, 18, 24]
 for i in range(1, 5):
     register(
         id=f"EasyGridWorldEnv{i}-v0",
         entry_point=f"custom_envs.envs.gridworld_origin:EasyGridWorldEnv{i}",
-        max_episode_steps=10,
+        max_episode_steps=easy_gridworld_steps[i-1],
     )

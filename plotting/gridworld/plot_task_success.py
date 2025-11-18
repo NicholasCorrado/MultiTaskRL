@@ -59,8 +59,6 @@ if __name__ == "__main__":
 
     env_id = 'GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4'
 
-
-    x_dict, y_dict, linestyle_dict, color_dict = {}, {}, {}, {}
     lr = 1e-2
     ns = 128
 
@@ -68,11 +66,81 @@ if __name__ == "__main__":
     x_dict, y_dict, linestyle_dict, color_dict = {}, {}, {}, {}
     ax = plt.subplot(n_rows, n_cols, subplot_i)
     subplot_i+=1
+    color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
 
-    results_dir = f"../../results/ppo_gridworld_1/success_ref/results/GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4/ppo"
+    results_dir = f"../../results/ppo_easy_gridworld_8/success_ref/results/EasyGridWorldEnv1_EasyGridWorldEnv2_EasyGridWorldEnv3_EasyGridWorldEnv4/ppo"
+
+    key = f"DRO with Success Gap"
+    # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
+
+    x, y = get_data(results_dir, y_name=f'success_rate')
+    T = len(x)
+    if y is not None:
+        x_dict[key] = x[:T]
+        y_dict[key] = y[:, :T]
+        linestyle_dict[key] = '-'
+        color_dict[key] = next(color_palette)
+
+    key = f"Standard"
+    results_dir = f"../../results/ppo_easy_gridworld_8/no_dro/results/EasyGridWorldEnv1_EasyGridWorldEnv2_EasyGridWorldEnv3_EasyGridWorldEnv4/ppo"
+    # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
+
+    x, y = get_data(results_dir, y_name=f'success_rate')
+    T = len(x)
+    if y is not None:
+        x_dict[key] = x[:T]
+        y_dict[key] = y[:, :T]
+        linestyle_dict[key] = '-'
+        color_dict[key] = next(color_palette)
+
+    plot(x[:T], y_dict, linestyle_dict, color_dict, title='DRO vs Standard', ylabel='Success Rate')
+    plt.axhline(y=1, color='k', linestyle='--', label='Optimal\nsuccess rate')
+    plt.legend()
+
+    # STANDARD TASK i ##################################################################################################
+    x_dict, y_dict, linestyle_dict, color_dict = {}, {}, {}, {}
+    ax = plt.subplot(n_rows, n_cols, subplot_i)
+    subplot_i += 1
+    color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
+
+    results_dir = f"../../results/ppo_easy_gridworld_8/success_ref/results/EasyGridWorldEnv1_EasyGridWorldEnv2_EasyGridWorldEnv3_EasyGridWorldEnv4/ppo"
+
+    key = f"DRO with Success Gap"
+    # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
+
+    x, y = get_data(results_dir, y_name=f'success_rate')
+    T = len(x)
+    if y is not None:
+        x_dict[key] = x[:T]
+        y_dict[key] = y[:, :T]
+        linestyle_dict[key] = '-'
+        color_dict[key] = next(color_palette)
+
+    key = f"Standard"
+    results_dir = f"../../results/ppo_easy_gridworld_8/no_dro/results/EasyGridWorldEnv1_EasyGridWorldEnv2_EasyGridWorldEnv3_EasyGridWorldEnv4/ppo"
+    # color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
+
+    x, y = get_data(results_dir, y_name=f'success_rate')
+    T = len(x)
+    if y is not None:
+        x_dict[key] = x[:T]
+        y_dict[key] = y[:, :T]
+        linestyle_dict[key] = '-'
+        color_dict[key] = next(color_palette)
+
+    plot(x[:T], y_dict, linestyle_dict, color_dict, title='DRO vs Standard', ylabel='Success Rate')
+    plt.axhline(y=1, color='k', linestyle='--', label='Optimal\nsuccess rate')
+    plt.legend()
+
+    # DRO TASK i #######################################################################################################
+    x_dict, y_dict, linestyle_dict, color_dict = {}, {}, {}, {}
+    ax = plt.subplot(n_rows, n_cols, subplot_i)
+    subplot_i += 1
+
+    results_dir = f"../../results/ppo_easy_gridworld_8/success_ref/results/EasyGridWorldEnv1_EasyGridWorldEnv2_EasyGridWorldEnv3_EasyGridWorldEnv4/ppo"
     color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
     for i in range(n):
-        key = f"Task {i+1}"
+        key = f"Task {i + 1}"
         x, y = get_data(results_dir, y_name=f'success_rate_{i}')
 
         T = len(x)
@@ -88,12 +156,12 @@ if __name__ == "__main__":
     # STANDARD TASK i ##################################################################################################
     x_dict, y_dict, linestyle_dict, color_dict = {}, {}, {}, {}
     ax = plt.subplot(n_rows, n_cols, subplot_i)
-    subplot_i+=1
+    subplot_i += 1
 
-    results_dir = f"../../results/ppo_gridworld_1/no_dro/results/GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4/ppo"
+    results_dir = f"../../results/ppo_easy_gridworld_8/no_dro/results/EasyGridWorldEnv1_EasyGridWorldEnv2_EasyGridWorldEnv3_EasyGridWorldEnv4/ppo"
     color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
     for i in range(n):
-        key = f"Task {i+1}"
+        key = f"Task {i + 1}"
         x, y = get_data(results_dir, y_name=f'success_rate_{i}')
 
         T = len(x)
@@ -106,55 +174,13 @@ if __name__ == "__main__":
     plt.axhline(y=1, color='k', linestyle='--', label='Optimal\nsuccess rate')
     plt.legend()
 
-    # DRO TASK i #######################################################################################################
-    x_dict, y_dict, linestyle_dict, color_dict = {}, {}, {}, {}
-    ax = plt.subplot(n_rows, n_cols, subplot_i)
-    subplot_i+=1
-
-    results_dir = f"../../results/ppo_gridworld_1/success_ref/results/GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4/ppo"
-    color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
-    for i in range(n):
-        key = f"Task {i+1}"
-        x, y = get_data(results_dir, y_name=f'return_{i}')
-
-        T = len(x)
-        if y is not None:
-            x_dict[key] = x[:T]
-            y_dict[key] = y[:, :T]
-            linestyle_dict[key] = '-'
-            color_dict[key] = next(color_palette)
-    plot(x[:T], y_dict, linestyle_dict, color_dict, title='Task Return: DRO', ylabel='Return', y_bottom=-2.1)
-    plt.axhline(y=1, color='k', linestyle='--', label='Optimal return')
-    plt.legend()
-
-    # STANDARD TASK i ##################################################################################################
-    x_dict, y_dict, linestyle_dict, color_dict = {}, {}, {}, {}
-    ax = plt.subplot(n_rows, n_cols, subplot_i)
-    subplot_i+=1
-
-    results_dir = f"../../results/ppo_gridworld_1/no_dro/results/GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4/ppo"
-    color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
-    for i in range(n):
-        key = f"Task {i+1}"
-        x, y = get_data(results_dir, y_name=f'return_{i}')
-
-        T = len(x)
-        if y is not None:
-            x_dict[key] = x[:T]
-            y_dict[key] = y[:, :T]
-            linestyle_dict[key] = '-'
-            color_dict[key] = next(color_palette)
-    plot(x[:T], y_dict, linestyle_dict, color_dict, title='Task Return: Standard', ylabel='Return', y_bottom=-2.1)
-    plt.axhline(y=1, color='k', linestyle='--', label='Optimal return')
-    plt.legend()
-
     #
     # DRO TASK i #######################################################################################################
     x_dict, y_dict, linestyle_dict, color_dict = {}, {}, {}, {}
     ax = plt.subplot(n_rows, n_cols, subplot_i)
     subplot_i+=1
 
-    results_dir = f"../../results/ppo_gridworld_1/success_ref/results/GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4/ppo"
+    results_dir = f"../../results/ppo_easy_gridworld_8/success_ref/results/EasyGridWorldEnv1_EasyGridWorldEnv2_EasyGridWorldEnv3_EasyGridWorldEnv4/ppo"
     color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
     for i in range(n):
         key = f"Task {i+1}"
@@ -174,7 +200,7 @@ if __name__ == "__main__":
     ax = plt.subplot(n_rows, n_cols, subplot_i)
     subplot_i+=1
 
-    results_dir = f"../../results/ppo_gridworld_1/no_dro/results/GridWorldEnv1_GridWorldEnv2_GridWorldEnv3_GridWorldEnv4/ppo"
+    results_dir = f"../../results/ppo_easy_gridworld_8/no_dro/results/EasyGridWorldEnv1_EasyGridWorldEnv2_EasyGridWorldEnv3_EasyGridWorldEnv4/ppo"
     color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
     for i in range(n):
         key = f"Task {i+1}"
