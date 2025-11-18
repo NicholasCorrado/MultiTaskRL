@@ -64,8 +64,8 @@ for i in range(1, 9):
         max_episode_steps=gridworld_steps[i],
     )
 
-pointmaze_steps = [0, 100, 200, 400, 400, 800, 800, 1600, 1600, 3200, 3200]
-for i in range(1, 11):
+pointmaze_steps = [1000, 100, 200, 400, 400, 800, 800, 1600, 1600, 3200, 3200]
+for i in range(0, 11):
     register(
         id=f"PointMaze{i}-v0",
         entry_point=f"custom_envs.envs.pointmaze:PointMazeEnv{i}",

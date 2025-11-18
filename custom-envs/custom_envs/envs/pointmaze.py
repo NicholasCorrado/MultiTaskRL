@@ -92,11 +92,12 @@ class PointMazeEnv1(gym.Env):
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
-        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
-                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
-                                                (11,),
+        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(10)]),
+                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(10)]),
+                                                (18,),
                                                 np.float64)
-        self.task_id = [0, 1, 0]
+        self.task_id = [0 for _ in range(10)]
+        self.task_id[0] = 1
 
         super().__init__()
 
@@ -128,11 +129,12 @@ class PointMazeEnv2(gym.Env):
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
-        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
-                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
-                                                (11,),
+        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(10)]),
+                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(10)]),
+                                                (18,),
                                                 np.float64)
-        self.task_id = [0, 0, 1]
+        self.task_id = [0 for _ in range(10)]
+        self.task_id[1] = 1
 
         super().__init__()
 
@@ -164,11 +166,12 @@ class PointMazeEnv3(gym.Env):
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
-        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
-                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
-                                                (11,),
+        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(10)]),
+                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(10)]),
+                                                (18,),
                                                 np.float64)
-        self.task_id = [0, 0, 1]
+        self.task_id = [0 for _ in range(10)]
+        self.task_id[2] = 1
 
         super().__init__()
 
@@ -200,11 +203,12 @@ class PointMazeEnv4(gym.Env):
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
-        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
-                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
-                                                (11,),
+        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(10)]),
+                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(10)]),
+                                                (18,),
                                                 np.float64)
-        self.task_id = [0, 0, 1]
+        self.task_id = [0 for _ in range(10)]
+        self.task_id[3] = 1
 
         super().__init__()
 
@@ -236,11 +240,12 @@ class PointMazeEnv5(gym.Env):
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
-        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
-                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
-                                                (11,),
+        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(10)]),
+                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(10)]),
+                                                (18,),
                                                 np.float64)
-        self.task_id = [0, 0, 1]
+        self.task_id = [0 for _ in range(10)]
+        self.task_id[4] = 1
 
         super().__init__()
 
@@ -272,11 +277,12 @@ class PointMazeEnv6(gym.Env):
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
-        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
-                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
-                                                (11,),
+        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(10)]),
+                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(10)]),
+                                                (18,),
                                                 np.float64)
-        self.task_id = [0, 0, 1]
+        self.task_id = [0 for _ in range(10)]
+        self.task_id[5] = 1
 
         super().__init__()
 
@@ -308,11 +314,12 @@ class PointMazeEnv7(gym.Env):
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
-        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
-                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
-                                                (11,),
+        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(10)]),
+                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(10)]),
+                                                (18,),
                                                 np.float64)
-        self.task_id = [0, 0, 1]
+        self.task_id = [0 for _ in range(10)]
+        self.task_id[6] = 1
 
         super().__init__()
 
@@ -344,11 +351,12 @@ class PointMazeEnv8(gym.Env):
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
-        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
-                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
-                                                (11,),
+        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(10)]),
+                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(10)]),
+                                                (18,),
                                                 np.float64)
-        self.task_id = [0, 0, 1]
+        self.task_id = [0 for _ in range(10)]
+        self.task_id[7] = 1
 
         super().__init__()
 
@@ -380,11 +388,12 @@ class PointMazeEnv9(gym.Env):
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
-        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
-                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
-                                                (11,),
+        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(10)]),
+                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(10)]),
+                                                (18,),
                                                 np.float64)
-        self.task_id = [0, 0, 1]
+        self.task_id = [0 for _ in range(10)]
+        self.task_id[8] = 1
 
         super().__init__()
 
@@ -415,11 +424,12 @@ class PointMazeEnv10(gym.Env):
 
         self.env = gym.make('PointMaze_UMaze-v3', maze_map=example_map)
         self.action_space = self.env.action_space
-        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(3)]),
-                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(3)]),
-                                                (11,),
+        self.observation_space = gym.spaces.Box(np.array([-np.inf for _ in range(8)] + [0 for _ in range(10)]),
+                                                np.array([np.inf for _ in range(8)] + [1 for _ in range(10)]),
+                                                (18,),
                                                 np.float64)
-        self.task_id = [0, 0, 1]
+        self.task_id = [0 for _ in range(10)]
+        self.task_id[9] = 1
 
         super().__init__()
 
