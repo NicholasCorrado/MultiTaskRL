@@ -256,3 +256,4 @@ fabric.properties
 /plotting/gridworld/figures/
 /plotting/goal2d/figures/
 /plotting/gridworld/figures/
+/chtc/get_results_chtc.sh
