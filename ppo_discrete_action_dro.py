@@ -57,6 +57,8 @@ class Args:
     # Evaluation
     eval_freq: int = 10
     """Evaluate policy every eval_freq updates"""
+    num_evals: int = None
+    """Number of total evaluations"""
     eval_episodes: int = 100
     """Number of trajectories to collect during each evaluation"""
 
@@ -263,6 +265,9 @@ if __name__ == "__main__":
     env_name = env_name[:-1]
 
     run_name = f"{env_name}__{args.exp_name}__{args.seed}__{int(time.time())}"
+
+    if args.num_evals is not None:
+        args.eval_freq = args.num_iterations // args.num_evals
 
     # Seeding
     if args.seed is None:

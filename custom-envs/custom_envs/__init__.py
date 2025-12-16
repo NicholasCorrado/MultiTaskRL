@@ -84,3 +84,16 @@ for i in range(1, 5):
         entry_point=f"custom_envs.envs.gridworld_origin:EasyGridWorldEnv{i}",
         max_episode_steps=easy_gridworld_steps[i-1],
     )
+
+register(
+    id="HardGridWorldEnv-v0",
+    entry_point="custom_envs.envs.hard_gridworld:HardGridWorldEnv",
+)
+
+easy_gridworld_steps = [10, 21, 21, 32]
+for i in range(1, 5):
+    register(
+        id=f"HardGridWorldEnv{i}-v0",
+        entry_point=f"custom_envs.envs.hard_gridworld:HardGridWorldEnv{i}",
+        max_episode_steps=easy_gridworld_steps[i-1],
+    )
