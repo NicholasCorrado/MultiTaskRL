@@ -91,7 +91,7 @@ register(
 )
 
 easy_gridworld_steps = [10, 21, 21, 32]
-for i in range(1, 5):
+for i in range(1, 4):
     register(
         id=f"HardGridWorldEnv{i}-v0",
         entry_point=f"custom_envs.envs.hard_gridworld:HardGridWorldEnv{i}",
