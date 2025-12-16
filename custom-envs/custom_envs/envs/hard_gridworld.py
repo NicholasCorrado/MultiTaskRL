@@ -5,16 +5,15 @@ import numpy as np
 
 gridworld_maps = [
     # Map 1
-    # Expected Steps Num from r to g: 14
+    # Expected Steps Num from r to g: 7
     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-     [1, 'r', 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 'r', 0, 0, 0, 0, 0, 0, 'g', 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 'g', 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
 
     # Map 2
@@ -23,24 +22,22 @@ gridworld_maps = [
      [1, 'r', 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 'g', 1],
      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
 
     # Map 3
-    # Expected Steps Num from r to g: 14
+    # Expected Steps Num from r to g: 21
     [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
      [1, 'r', 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 'g', 1],
+     [1, 'g', 0, 0, 0, 0, 0, 0, 0, 1],
      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
 
     # Map 4
@@ -57,6 +54,8 @@ gridworld_maps = [
      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
 ]
 
+n = 3
+
 class HardGridWorldEnv(gym.Env):
     def __init__(self, shape=(5,5), rewards=(-0.01, 0.5, 1), map=None):
         super().__init__()
@@ -70,7 +69,7 @@ class HardGridWorldEnv(gym.Env):
             self.shape = np.array(shape)
             self.action_space = gym.spaces.Discrete(4)
 
-            obs_dim = 4 + shape[0] * shape[1]
+            obs_dim = n + shape[0] * shape[1]
             self.observation_space = gym.spaces.Box(low=np.zeros(obs_dim), high=np.ones(obs_dim), shape=(obs_dim,))
 
             self.nrows, self.ncols = self.shape
@@ -100,7 +99,7 @@ class HardGridWorldEnv(gym.Env):
             self.shape = shape
             self.action_space = gym.spaces.Discrete(4)
 
-            obs_dim = 4 + shape[0] * shape[1]
+            obs_dim = n + shape[0] * shape[1]
             self.observation_space = gym.spaces.Box(low=np.zeros(obs_dim), high=np.ones(obs_dim), shape=(obs_dim,))
 
             # The reborn/goal position of this map
@@ -193,24 +192,27 @@ class HardGridWorldEnv(gym.Env):
 
 class HardGridWorldEnv1(HardGridWorldEnv):
     def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
-        super().__init__(shape=(10, 10), rewards=(-0.01, 0, 1), map=gridworld_maps[0])
-        self.task_id = np.zeros(4)
+        map = gridworld_maps[0]
+        super().__init__(shape=(len(map), len(map[0])), rewards=(-0.01, 0, 1), map=map)
+        self.task_id = np.zeros(n)
         self.task_id[0] = 1
 
 class HardGridWorldEnv2(HardGridWorldEnv):
     def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
-        super().__init__(shape=(10, 10), rewards=(-0.01, 0, 1), map=gridworld_maps[1])
-        self.task_id = np.zeros(4)
+        map = gridworld_maps[1]
+        super().__init__(shape=(len(map), len(map[0])), rewards=(-0.01, 0, 1), map=map)
+        self.task_id = np.zeros(n)
         self.task_id[1] = 1
 
 class HardGridWorldEnv3(HardGridWorldEnv):
     def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
-        super().__init__(shape=(10, 10), rewards=(-0.01, 0, 1), map=gridworld_maps[2])
-        self.task_id = np.zeros(4)
+        map = gridworld_maps[2]
+        super().__init__(shape=(len(map), len(map[0])), rewards=(-0.01, 0, 1), map=map)
+        self.task_id = np.zeros(n)
         self.task_id[2] = 1
 
-class HardGridWorldEnv4(HardGridWorldEnv):
-    def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
-        super().__init__(shape=(10, 10), rewards=(-0.01, 0, 1), map=gridworld_maps[3])
-        self.task_id = np.zeros(4)
-        self.task_id[3] = 1
+# class HardGridWorldEnv4(HardGridWorldEnv):
+#     def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
+#         super().__init__(shape=(10, 10), rewards=(-0.01, 0, 1), map=gridworld_maps[3])
+#         self.task_id = np.zeros(n)
+#         self.task_id[3] = 1
