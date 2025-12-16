@@ -192,24 +192,27 @@ class HardGridWorldEnv(gym.Env):
 
 class HardGridWorldEnv1(HardGridWorldEnv):
     def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
-        map = gridworld_maps[0]
+        i = 0
+        map = gridworld_maps[i]
         super().__init__(shape=(len(map), len(map[0])), rewards=(-0.01, 0, 1), map=map)
         self.task_id = np.zeros(n)
-        self.task_id[0] = 1
+        self.task_id[i] = 1
 
 class HardGridWorldEnv2(HardGridWorldEnv):
     def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
-        map = gridworld_maps[1]
+        i = 1
+        map = gridworld_maps[i]
         super().__init__(shape=(len(map), len(map[0])), rewards=(-0.01, 0, 1), map=map)
         self.task_id = np.zeros(n)
-        self.task_id[1] = 1
+        self.task_id[i] = 1
 
 class HardGridWorldEnv3(HardGridWorldEnv):
     def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
-        map = gridworld_maps[2]
+        i = 2
+        map = gridworld_maps[i]
         super().__init__(shape=(len(map), len(map[0])), rewards=(-0.01, 0, 1), map=map)
         self.task_id = np.zeros(n)
-        self.task_id[2] = 1
+        self.task_id[i] = 1
 
 # class HardGridWorldEnv4(HardGridWorldEnv):
 #     def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
