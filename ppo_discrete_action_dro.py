@@ -291,9 +291,9 @@ class Args:
     task_probs_init: List[float] = None
     dro: int = 0
     dro_num_steps: int = 128
-    dro_eps: float = 0.01
-    dro_eta: float = 10.0
-    dro_step_size: float = 0.5
+    dro_eps: float = 0.01 # minimum task probability
+    dro_eta: float = 10.0 # controls sharpness of task distribution. Larger = sharper
+    dro_step_size: float = 0.5 # don't change this
 
     # Algorithm specific arguments
     env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
