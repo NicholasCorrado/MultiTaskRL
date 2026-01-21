@@ -2,59 +2,114 @@ from typing import Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
-
+R = 'r'
+G = 'g'
 gridworld_maps = [
+
+    [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+     [1, R, 0, 0, 0, 0, 0, G, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 1, 1, 1, 1, 1, 1, 1, 1]],
+
+    [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+     [1, R, 0, 0, 1, 0, 0, G, 1],
+     [1, 0, 0, 0, 1, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 1, 1, 1, 1, 1, 1, 1, 1]],
+
+    [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+     [1, R, 0, 0, 1, 0, 0, G, 1],
+     [1, 0, 0, 0, 1, 0, 0, 0, 1],
+     [1, 0, 0, 0, 1, 0, 0, 0, 1],
+     [1, 0, 0, 0, 1, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 1, 1, 1, 1, 1, 1, 1, 1]],
+
+    [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+     [1, R, 0, 0, 1, 0, 0, G, 1],
+     [1, 0, 0, 0, 1, 0, 0, 0, 1],
+     [1, 0, 0, 0, 1, 0, 0, 0, 1],
+     [1, 0, 0, 0, 1, 0, 0, 0, 1],
+     [1, 0, 0, 0, 1, 0, 0, 0, 1],
+     [1, 0, 0, 0, 1, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 1, 1, 1, 1, 1, 1, 1, 1]],
+
     # Map 1
-    # Expected Steps Num from r to g: 7
-    [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-     [1, 'r', 0, 0, 0, 0, 0, 0, 'g', 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
+    # Expected Steps Num from r to g: 12
+    [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+     [1, R, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, 0, 1],
+     [1, 0, 0, 0, 0, 0, 0, G, 1],
+     [1, 1, 1, 1, 1, 1, 1, 1, 1]],
 
     # Map 2
-    # Expected Steps Num from r to g: 14
-    [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-     [1, 'r', 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 'g', 1],
-     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
+    # Expected Steps Num from r to g: 18
+    # [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+    #  [1, R, 0, 0, 1, 0, 0, G, 1],
+    #  [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 1, 1, 1, 1, 1, 1, 1, 1]],
 
     # Map 3
-    # Expected Steps Num from r to g: 21
-    [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-     [1, 'r', 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 'g', 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
+    # Expected Steps Num from r to g: 25
+    # [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+    #  [1, R, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 1, 1, 1, 1, 1, 1, 0, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 0, 1, 1, 1, 1, 1, 1, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, G, 1],
+    #  [1, 1, 1, 1, 1, 1, 1, 1, 1]],
 
     # Map 4
-    # Expected Steps Num from r to g: 21
-    [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-     [1, 'r', 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 'g', 0, 0, 0, 0, 0, 0, 0, 1],
-     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
+    # Expected Steps Num from r to g: 31
+    # [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+    #  [1, R, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 1, 1, 1, 1, 1, 1, 0, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 0, 1, 1, 1, 1, 1, 1, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 1, 1, 1, 1, 1, 1, 0, 1],
+    #  [1, G, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 1, 1, 1, 1, 1, 1, 1, 1]],
+
+    #
+    # # Map 4
+    # # Expected Steps Num from r to g: 21
+    # [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    #  [1, R, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 'g', 0, 0, 0, 0, 0, 0, 0, 1],
+    #  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]],
 ]
 
-n = 3
+n = 4
 
 class HardGridWorldEnv(gym.Env):
     def __init__(self, shape=(5,5), rewards=(-0.01, 0.5, 1), map=None):
@@ -69,7 +124,7 @@ class HardGridWorldEnv(gym.Env):
             self.shape = np.array(shape)
             self.action_space = gym.spaces.Discrete(4)
 
-            obs_dim = n + shape[0] * shape[1]
+            obs_dim = shape[0] * shape[1]
             self.observation_space = gym.spaces.Box(low=np.zeros(obs_dim), high=np.ones(obs_dim), shape=(obs_dim,))
 
             self.nrows, self.ncols = self.shape
@@ -99,7 +154,7 @@ class HardGridWorldEnv(gym.Env):
             self.shape = shape
             self.action_space = gym.spaces.Discrete(4)
 
-            obs_dim = n + shape[0] * shape[1]
+            obs_dim = shape[0] * shape[1]
             self.observation_space = gym.spaces.Box(low=np.zeros(obs_dim), high=np.ones(obs_dim), shape=(obs_dim,))
 
             # The reborn/goal position of this map
@@ -170,7 +225,7 @@ class HardGridWorldEnv(gym.Env):
         truncated = False
         info = {'is_success': reward == self.opt_reward}
 
-        return np.concatenate([self.task_id, state]), reward, terminated, truncated, info
+        return np.concatenate([state]), reward, terminated, truncated, info
 
     def reset(
         self,
@@ -187,7 +242,7 @@ class HardGridWorldEnv(gym.Env):
             self.rowcol = self.init_rowcol.copy()
         state = self._rowcol_to_obs(self.rowcol)
 
-        return np.concatenate([self.task_id, state]), {}
+        return np.concatenate([state]), {}
 
 
 class HardGridWorldEnv1(HardGridWorldEnv):
@@ -209,6 +264,14 @@ class HardGridWorldEnv2(HardGridWorldEnv):
 class HardGridWorldEnv3(HardGridWorldEnv):
     def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
         i = 2
+        map = gridworld_maps[i]
+        super().__init__(shape=(len(map), len(map[0])), rewards=(-0.01, 0, 1), map=map)
+        self.task_id = np.zeros(n)
+        self.task_id[i] = 1
+
+class HardGridWorldEnv4(HardGridWorldEnv):
+    def __init__(self, shape=(10, 10), rewards=(-0.01, 0, 1)):
+        i = 3
         map = gridworld_maps[i]
         super().__init__(shape=(len(map), len(map[0])), rewards=(-0.01, 0, 1), map=map)
         self.task_id = np.zeros(n)
