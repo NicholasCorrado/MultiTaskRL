@@ -290,7 +290,7 @@ class Args:
     dro_success_ref: bool = True
     task_probs_init: List[float] = None
     dro: int = 1
-    dro_num_steps: int = 1024
+    dro_num_steps: int = 4096
     dro_eps: float = 0.01 # minimum task probability
     dro_eta: float = 16.0 # controls sharpness of task distribution. Larger = sharper
     dro_step_size: float = 0.5 # don't change this
@@ -298,10 +298,10 @@ class Args:
     # Algorithm specific arguments
     # env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
     env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_{maze}-v3" for maze in ['UMaze', 'Medium', 'Large']])
-    total_timesteps: int =  1000000
+    total_timesteps: int =  10000000
     learning_rate: float = 1e-3
     num_envs: int = 1
-    num_steps: int = 1024
+    num_steps: int = 4096
     anneal_lr: bool = False
     gamma: float = 0.99
     gae_lambda: float = 0.95
