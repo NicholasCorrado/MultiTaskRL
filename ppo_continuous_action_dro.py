@@ -298,7 +298,7 @@ class Args:
     # Algorithm specific arguments
     # env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
     env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_{maze}-v3" for maze in ['UMaze', 'Medium', 'Large']])
-    total_timesteps: int =  5000000
+    total_timesteps: int =  10000000
     learning_rate: float = 1e-3
     num_envs: int = 1
     num_steps: int = 4096
