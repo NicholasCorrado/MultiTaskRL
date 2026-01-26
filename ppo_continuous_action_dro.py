@@ -22,6 +22,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.distributions import Normal
 import tyro
 import yaml
 from stable_baselines3.common.utils import get_latest_run_id
@@ -297,20 +298,20 @@ class Args:
 
     # Algorithm specific arguments
     # env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
-    env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_UMaze-v3", "PointMaze_Medium_Diverse_G-v3", "PointMaze_Large_Diverse_G-v3"])
+    env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_UMaze-v3", "PointMaze_Medium-v3", "PointMaze_Large-v3"])
     total_timesteps: int =  10_000_000
-    learning_rate: float = 1e-3
+    learning_rate: float = 3e-4
     num_envs: int = 1
     num_steps: int = 4096
     anneal_lr: bool = False
     gamma: float = 0.99
     gae_lambda: float = 0.95
-    num_minibatches: int = 8
-    update_epochs: int = 8
+    num_minibatches: int = 32
+    update_epochs: int = 16
     norm_adv: bool = False
     clip_coef: float = 0.2
     clip_vloss: bool = False
-    ent_coef: float = 0.01
+    ent_coef: float = 0.03
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     target_kl: float = 0.05
@@ -329,6 +330,101 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
     torch.nn.init.constant_(layer.bias, bias_const)
     return layer
+
+class Agent(nn.Module):
+    def __init__(self, envs, num_tasks, linear=True):
+        super().__init__()
+        self.num_tasks = num_tasks
+        # Observation dim without the one-hot task encoding
+        obs_dim = int(np.array(envs.single_observation_space.shape).prod()) - num_tasks
+        out_dim = int(np.prod(envs.single_action_space.shape))
+
+        if linear:
+            self.critic_trunk = None
+            self.actor_trunk = None
+            trunk_dim = obs_dim
+        else:
+            self.critic_trunk = nn.Sequential(
+                layer_init(nn.Linear(obs_dim, 256)),
+                nn.Tanh(),
+                layer_init(nn.Linear(256, 256)),
+                nn.Tanh(),
+            )
+            self.actor_trunk = nn.Sequential(
+                layer_init(nn.Linear(obs_dim, 256)),
+                nn.Tanh(),
+                layer_init(nn.Linear(256, 256)),
+                nn.Tanh(),
+            )
+            trunk_dim = 256
+
+        # Multi-headed outputs: (num_tasks, trunk_dim, out_dim)
+        self.critic_heads = nn.Parameter(torch.zeros(num_tasks, trunk_dim, 1))
+        self.actor_heads = nn.Parameter(torch.zeros(num_tasks, trunk_dim, out_dim))
+
+        # Initialize heads
+        for i in range(num_tasks):
+            nn.init.orthogonal_(self.critic_heads[i], gain=1.0)
+            nn.init.orthogonal_(self.actor_heads[i], gain=0.01)
+
+        # Per-task log std
+        self.actor_logstd = nn.Parameter(torch.zeros(num_tasks, out_dim))
+
+    def _split_obs(self, x):
+        """Split observation into task one-hot and actual observation."""
+        task_onehot = x[..., :self.num_tasks]
+        obs = x[..., self.num_tasks:]
+        return task_onehot, obs
+
+    def _apply_heads(self, features, heads, task_onehot):
+        """Efficiently apply task-specific heads using einsum.
+
+        features: (batch, trunk_dim)
+        heads: (num_tasks, trunk_dim, out_dim)
+        task_onehot: (batch, num_tasks)
+
+        Returns: (batch, out_dim)
+        """
+        # Compute all head outputs: (batch, num_tasks, out_dim)
+        all_outputs = torch.einsum('bf,tfo->bto', features, heads)
+        # Select using one-hot: (batch, out_dim)
+        # task_onehot is (batch, num_tasks), need to expand for broadcasting
+        return torch.einsum('bt,bto->bo', task_onehot, all_outputs)
+
+    def get_value(self, x):
+        task_onehot, obs = self._split_obs(x)
+        features = self.critic_trunk(obs) if self.critic_trunk else obs
+        return self._apply_heads(features, self.critic_heads, task_onehot)
+
+    def get_action_and_value(self, x, action=None):
+        task_onehot, obs = self._split_obs(x)
+
+        actor_features = self.actor_trunk(obs) if self.actor_trunk else obs
+        critic_features = self.critic_trunk(obs) if self.critic_trunk else obs
+
+        action_mean = self._apply_heads(actor_features, self.actor_heads, task_onehot)
+        value = self._apply_heads(critic_features, self.critic_heads, task_onehot)
+
+        # Select task-specific logstd: (batch, out_dim)
+        action_logstd = torch.einsum('bt,to->bo', task_onehot, self.actor_logstd)
+        action_std = torch.exp(action_logstd)
+
+        probs = Normal(action_mean, action_std)
+        if action is None:
+            action = probs.sample()
+        return action, probs.log_prob(action).sum(-1), probs.entropy().sum(-1), value
+
+    def get_action(self, x, sample=True):
+        task_onehot, obs = self._split_obs(x)
+        actor_features = self.actor_trunk(obs) if self.actor_trunk else obs
+        action_mean = self._apply_heads(actor_features, self.actor_heads, task_onehot)
+
+        if sample:
+            action_logstd = torch.einsum('bt,to->bo', task_onehot, self.actor_logstd)
+            action_std = torch.exp(action_logstd)
+            probs = Normal(action_mean, action_std)
+            return probs.sample()
+        return action_mean
 
 class Agent(nn.Module):
     def __init__(self, envs, linear=True):
@@ -378,11 +474,6 @@ class Agent(nn.Module):
             return probs.sample()
         return action_mean
 
-
-import numpy as np
-import torch
-import torch.nn as nn
-from torch.distributions import Normal
 
 def exponentiated_gradient_ascent_step(
     args: Args,
