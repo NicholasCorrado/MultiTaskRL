@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import random
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -297,9 +297,9 @@ class Args:
 
     # Algorithm specific arguments
     # env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
-    env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_{maze}-v3" for maze in ['UMaze', 'Medium', 'Large']])
-    total_timesteps: int =  10000000
-    learning_rate: float = 1e-4
+    env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_UMaze-v3", "PointMaze_Medium_Diverse_G-v3", "PointMaze_Large_Diverse_G-v3"])
+    total_timesteps: int =  10_000_000
+    learning_rate: float = 1e-3
     num_envs: int = 1
     num_steps: int = 4096
     anneal_lr: bool = False
@@ -313,7 +313,7 @@ class Args:
     ent_coef: float = 0.01
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
-    target_kl: float = None
+    target_kl: float = 0.05
 
     linear: bool = False
 
@@ -341,18 +341,18 @@ class Agent(nn.Module):
             self.actor_mean = nn.Sequential(layer_init(nn.Linear(in_dim, out_dim), std=0.01))
         else:
             self.critic = nn.Sequential(
-                layer_init(nn.Linear(in_dim, 64)),
+                layer_init(nn.Linear(in_dim, 256)),
                 nn.Tanh(),
-                layer_init(nn.Linear(64, 64)),
+                layer_init(nn.Linear(256, 256)),
                 nn.Tanh(),
-                layer_init(nn.Linear(64, 1), std=1.0),
+                layer_init(nn.Linear(256, 1), std=1.0),
             )
             self.actor_mean = nn.Sequential(
-                layer_init(nn.Linear(in_dim, 64)),
+                layer_init(nn.Linear(in_dim, 256)),
                 nn.Tanh(),
-                layer_init(nn.Linear(64, 64)),
+                layer_init(nn.Linear(256, 256)),
                 nn.Tanh(),
-                layer_init(nn.Linear(64, out_dim), std=0.01),
+                layer_init(nn.Linear(256, out_dim), std=0.01),
             )
 
         self.actor_logstd = nn.Parameter(torch.zeros(1, out_dim))
@@ -384,66 +384,6 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 
-# assumes you already have layer_init defined somewhere:
-# def layer_init(layer, std=np.sqrt(2), bias_const=0.0): ...
-
-class ContinuousAgent(nn.Module):
-    def __init__(self, envs, linear: bool = True):
-        super().__init__()
-        in_dim = int(np.array(envs.single_observation_space.shape).prod())
-        out_dim = int(np.prod(envs.single_action_space.shape))  # continuous action dim
-
-        # Critic
-        if linear:
-            self.critic = nn.Sequential(layer_init(nn.Linear(in_dim, 1), std=0.01))
-            self.actor_mean = nn.Sequential(layer_init(nn.Linear(in_dim, out_dim), std=0.01))
-        else:
-            self.critic = nn.Sequential(
-                layer_init(nn.Linear(in_dim, 64)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 64)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 1), std=0.01),
-            )
-            self.actor_mean = nn.Sequential(
-                layer_init(nn.Linear(in_dim, 64)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 64)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, out_dim), std=0.01),
-            )
-
-        # Global log-std parameter (CleanRL style)
-        self.actor_logstd = nn.Parameter(torch.zeros(1, out_dim))
-
-    def get_value(self, x):
-        return self.critic(x)
-
-    def get_action_and_value(self, x, action=None):
-        action_mean = self.actor_mean(x)                    # (B, act_dim)
-        action_logstd = self.actor_logstd.expand_as(action_mean)
-        action_std = torch.exp(action_logstd)
-
-        dist = Normal(action_mean, action_std)
-        if action is None:
-            action = dist.sample()                          # (B, act_dim)
-
-        logprob = dist.log_prob(action).sum(-1)             # (B,)
-        entropy = dist.entropy().sum(-1)                    # (B,)
-        value = self.critic(x)                              # (B, 1)
-        return action, logprob, entropy, value
-
-    def get_action(self, x, sample: bool = True):
-        action_mean = self.actor_mean(x)                    # (B, act_dim)
-
-        if not sample:
-            return action_mean
-
-        action_logstd = self.actor_logstd.expand_as(action_mean)
-        action_std = torch.exp(action_logstd)
-        dist = Normal(action_mean, action_std)
-        return dist.sample()                                # (B, act_dim)
-
 def exponentiated_gradient_ascent_step(
     args: Args,
     w: np.ndarray,
@@ -469,10 +409,10 @@ def exponentiated_gradient_ascent_step(
 
 def make_base_env(env_id: str, capture_video: bool, video_path: str, render: bool) -> gym.Env:
     if capture_video and render:
-        env = gym.make(env_id, render_mode="rgb_array", continuing_task=False)
+        env = gym.make(env_id, render_mode="rgb_array", continuing_task=False, reset_target=False)
         env = gym.wrappers.RecordVideo(env, video_path)
     else:
-        env = gym.make(env_id, continuing_task=False)
+        env = gym.make(env_id)
     env = gym.wrappers.RecordEpisodeStatistics(env)
     env = gym.wrappers.FlattenObservation(env)
     return env
@@ -695,12 +635,20 @@ if __name__ == "__main__":
     update_count = 0
     logs = defaultdict(lambda: [])
 
+    training_successes_queue = [deque(maxlen=20) for _ in range(num_tasks)]
+    training_successes = [[] for _ in range(num_tasks)]
     training_returns = [[] for _ in range(num_tasks)]
     previous_return_avg = np.zeros(num_tasks)
+
+    use_max_return = np.zeros(num_tasks, dtype=bool)
+    max_returns = np.empty(num_tasks)
+    max_returns[:] = -np.inf
 
     next_obs, _ = envs.reset(seed=args.seed)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
+
+    returns_ref = np.array([300, 600, 800])
 
     for iteration in range(1, args.num_iterations + 1):
         if args.anneal_lr:
@@ -731,19 +679,33 @@ if __name__ == "__main__":
                 for finfo in infos["final_info"]:
                     if finfo and "episode" in finfo:
                         tid = int(finfo["task_id"])
-                        if args.dro_success_ref:
-                            training_returns[tid].append(float(finfo.get("is_success", finfo.get("success", 0.0))))
-                        else:
-                            training_returns[tid].append(float(finfo["episode"]["r"]))
+                        # if args.dro_success_ref:
+                        #     training_returns[tid].append(float(finfo.get("is_success", finfo.get("success", 0.0))))
+                        # else:
+                        if float(finfo["episode"]["r"]) > max_returns[tid]:
+                            max_returns[tid] = float(finfo["episode"]["r"])
+                        training_returns[tid].append(float(finfo["episode"]["r"]))
+                        training_successes[tid].append(float(finfo.get("is_success", finfo.get("success", 0.0))))
+                        training_successes_queue[tid].append(float(finfo.get("is_success", finfo.get("success", 0.0))))
 
             if args.dro and global_step % args.dro_num_steps == 0:
                 training_returns_avg = np.array(
-                    [np.mean(training_returns[i]) if len(training_returns[i]) > 0 else np.nan for i in range(num_tasks)]
+                    [np.mean(training_returns[i]) if len(training_returns[i]) > 0 else 0 for i in range(num_tasks)]
                 )
-                training_returns_avg = np.nan_to_num(training_returns_avg)
+                training_success_rate = np.array(
+                    [np.mean(training_successes[i]) if len(training_successes[i]) > 0 else 0 for i in range(num_tasks)]
+                )
 
-                returns_ref = np.ones(num_tasks)
-                gap = np.clip(returns_ref - training_returns_avg, 0, np.inf)
+                for tid in range(num_tasks):
+
+                    # print(len(training_successes_queue[tid]), np.mean(training_successes_queue[tid]))
+                    if (len(training_successes_queue[tid]) >= 20 and np.mean(training_successes_queue[tid]) > 0.5):
+                        use_max_return[tid] = True
+
+                    if use_max_return[tid]:
+                        returns_ref[tid] = max_returns[tid]
+
+                gap = np.clip(returns_ref - training_returns_avg, 0, np.inf) / returns_ref
 
                 p = envs.get_task_probs()
                 # p_new = exponentiated_gradient_ascent_step(
@@ -764,6 +726,7 @@ if __name__ == "__main__":
                     dro_eps=args.dro_eps,  # now interpreted as floor min prob
                 )
                 envs.set_task_probs(p_new)
+                # print(f'refs: {returns_ref}')
                 # print(f"gaps: {gap}")
                 # print(f"Task probs: {p}")
 
