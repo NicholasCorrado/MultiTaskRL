@@ -208,28 +208,13 @@ def kl_project_with_floor(z: np.ndarray, dro_eps: float) -> np.ndarray:
 
 
 def kl_regularized_dro_update(
-    q: np.ndarray,
-    gap: np.ndarray,
-    eta: float,
-    step_size: float,
-    p0: Optional[np.ndarray] = None,
-    dro_eps: Optional[float] = None,
+        q: np.ndarray,
+        gap: np.ndarray,
+        eta: float,
+        step_size: float,
+        p0: Optional[np.ndarray] = None,
+        dro_eps: Optional[float] = None,
 ) -> np.ndarray:
-    """
-    One mirror-ascent step for KL-regularized DRO:
-
-        maximize_q   gap^T q  -  (1/eta) * KL(q || p0)
-
-    Update (matches your JAX code):
-        log q_new ∝ (1-α) log q + α log p0 + step_size * gap
-        α = step_size / eta
-
-    Optionally projects onto {q_i >= dro_eps} using KL projection.
-
-    Notes:
-    - Requires q to be strictly positive if using logs. We clip for safety.
-    - Typically 0 < step_size <= eta so α ∈ [0,1].
-    """
     q = np.asarray(q, dtype=np.float64)
     gap = np.asarray(gap, dtype=np.float64)
     k = len(q)
@@ -240,18 +225,15 @@ def kl_regularized_dro_update(
         p0 = np.asarray(p0, dtype=np.float64)
         p0 = p0 / p0.sum()
 
-    if not (eta > 0):
-        raise ValueError(f"eta must be > 0, got {eta}")
-    if not (step_size > 0):
-        raise ValueError(f"step_size must be > 0, got {step_size}")
+    alpha = step_size  # now step_size is directly in [0, 1]
 
-    alpha = step_size / eta  # ideally in [0,1], but we won't hard-error
-    # Make logs safe
     q_safe = np.clip(q, 1e-30, 1.0)
     p0_safe = np.clip(p0, 1e-30, 1.0)
 
-    log_q_new = (1.0 - alpha) * np.log(q_safe) + alpha * np.log(p0_safe) + step_size * gap
-    log_q_new -= np.max(log_q_new)  # stabilize
+    log_q_star = np.log(p0_safe) + eta * gap
+    log_q_new = alpha * log_q_star + (1.0 - alpha) * np.log(q_safe)
+
+    log_q_new -= np.max(log_q_new)
     q_new = np.exp(log_q_new)
     q_new /= q_new.sum()
 
@@ -263,7 +245,7 @@ def kl_regularized_dro_update(
 @dataclass
 class Args:
     exp_name: str = os.path.basename(__file__)[: -len(".py")]
-    seed: int = 1
+    seed: int = None
     torch_deterministic: bool = True
     cuda: bool = True
     track: bool = False
@@ -292,13 +274,13 @@ class Args:
     dro: int = 0
     dro_num_steps: int = 128
     dro_eps: float = 0.01 # minimum task probability
-    dro_eta: float = 10.0 # controls sharpness of task distribution. Larger = sharper
+    dro_eta: float = 1.0 # controls sharpness of task distribution. Larger = sharper
     dro_step_size: float = 0.5 # don't change this
 
     # Algorithm specific arguments
     env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
     total_timesteps: int =  1000000
-    learning_rate: float = 1e-2
+    learning_rate: float = 1e-3
     num_envs: int = 1
     num_steps: int = 64
     anneal_lr: bool = False
@@ -307,7 +289,7 @@ class Args:
     num_minibatches: int = 4
     update_epochs: int = 4
     norm_adv: bool = False
-    clip_coef: float = 9999999
+    clip_coef: float = 0.2
     clip_vloss: bool = True
     ent_coef: float = 0.01
     vf_coef: float = 0.5
@@ -670,6 +652,7 @@ if __name__ == "__main__":
 
                 returns_ref = np.ones(num_tasks)
                 gap = np.clip(returns_ref - training_returns_avg, 0, np.inf)
+                # slope = np.clip(training_returns_avg - training_returns_avg_prev)
 
                 p = envs.get_task_probs()
                 # p_new = exponentiated_gradient_ascent_step(
