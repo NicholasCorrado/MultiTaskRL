@@ -2,6 +2,8 @@ import os
 
 from gymnasium.envs.registration import register
 
+from custom_envs.envs.gridworld import gridworld_maps
+
 ENVS_DIR = os.path.join(os.path.dirname(__file__), 'envs')
 
 ############################################################################
@@ -37,63 +39,13 @@ for i in range(1, 6):
         max_episode_steps=1,
     )
 
-for i in range(1, 5):
+# Register environments
+for i, gmap in enumerate(gridworld_maps):
     register(
-        id=f"Goal2D{i}-v0",
-        entry_point=f"custom_envs.envs.goal2d:Goal2D{i}Env",
-        max_episode_steps=100,
-    )
-
-register(
-    id=f"Goal2DEasy-v0",
-    entry_point=f"custom_envs.envs.goal2d:Goal2DEasyEnv",
-    max_episode_steps=40,
-)
-
-register(
-    id=f"Goal2DHard-v0",
-    entry_point=f"custom_envs.envs.goal2d:Goal2DHardEnv",
-    max_episode_steps=40,
-)
-
-gridworld_steps = [0, 10, 10, 14, 14, 20, 20, 40, 60]
-for i in range(1, 9):
-    register(
-        id=f"GridWorldEnv{i}-v0",
-        entry_point=f"custom_envs.envs.gridworld:GridWorldEnv{i}",
-        max_episode_steps=gridworld_steps[i],
-    )
-
-pointmaze_steps = [1000, 100, 200, 400, 400, 800, 800, 1600, 1600, 3200, 3200]
-for i in range(0, 11):
-    register(
-        id=f"PointMaze{i}-v0",
-        entry_point=f"custom_envs.envs.pointmaze:PointMazeEnv{i}",
-        max_episode_steps=pointmaze_steps[i],
-    )
-
-register(
-    id="EasyGridWorldEnv-v0",
-    entry_point="custom_envs.envs.gridworld_origin:EasyGridWorldEnv",
-)
-
-easy_gridworld_steps = [6, 12, 18, 24]
-for i in range(1, 5):
-    register(
-        id=f"EasyGridWorldEnv{i}-v0",
-        entry_point=f"custom_envs.envs.gridworld_origin:EasyGridWorldEnv{i}",
-        max_episode_steps=easy_gridworld_steps[i-1],
-    )
-
-register(
-    id="HardGridWorldEnv-v0",
-    entry_point="custom_envs.envs.hard_gridworld:HardGridWorldEnv",
-)
-
-easy_gridworld_steps = [20, 20, 20, 20]
-for i in range(1, 5):
-    register(
-        id=f"HardGridWorldEnv{i}-v0",
-        entry_point=f"custom_envs.envs.hard_gridworld:HardGridWorldEnv{i}",
-        max_episode_steps=easy_gridworld_steps[i-1],
+        id=f"GridWorld{i}-v0",
+        entry_point="custom_envs.envs.gridworld:GridWorldEnv",
+        max_episode_steps=15,
+        kwargs={
+            "map": gmap
+        }
     )

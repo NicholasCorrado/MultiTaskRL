@@ -240,7 +240,86 @@ def kl_regularized_dro_update(
     if dro_eps is not None and dro_eps > 0:
         q_new = kl_project_with_floor(q_new, dro_eps)
 
+    # print(q_new)
     return q_new
+
+
+def smt_update(
+        q: np.ndarray,
+        thresholds: np.ndarray,
+        score: np.ndarray,
+        eta: float,
+        step_size: float,
+        p0: Optional[np.ndarray] = None,
+        dro_eps: Optional[float] = None,
+) -> np.ndarray:
+    k = len(q)
+
+    if p0 is None:
+        p0 = np.ones(k, dtype=np.float64) / k
+    else:
+        p0 = np.asarray(p0, dtype=np.float64)
+        p0 = p0 / p0.sum()
+
+    alpha = step_size  # now step_size is directly in [0, 1]
+
+    q_safe = np.clip(q, 1e-30, 1.0)
+    p0_safe = np.clip(p0, 1e-30, 1.0)
+
+    log_q_star = np.log(p0_safe) + eta * gap
+    log_q_new = alpha * log_q_star + (1.0 - alpha) * np.log(q_safe)
+
+    log_q_new -= np.max(log_q_new)
+    q_new = np.exp(log_q_new)
+    q_new /= q_new.sum()
+
+    if dro_eps is not None and dro_eps > 0:
+        q_new = kl_project_with_floor(q_new, dro_eps)
+
+    # print(q_new)
+    return q_new
+
+#
+# def smt_update(
+#         q: np.ndarray,
+#         min_threshold: np.ndarray,
+#         max_threshold: np.ndarray,
+#         score: np.ndarray,
+#         eta: float,
+#         step_size: float,
+#         p0: Optional[np.ndarray] = None,
+#         dro_eps: Optional[float] = None,
+# ) -> np.ndarray:
+#     k = len(q)
+#
+#     if p0 is None:
+#         p0 = np.ones(k, dtype=np.float64) / k
+#     else:
+#         p0 = np.asarray(p0, dtype=np.float64)
+#         p0 = p0 / p0.sum()
+#
+#     alpha = step_size  # now step_size is directly in [0, 1]
+#
+#     q_safe = np.clip(q, 1e-30, 1.0)
+#     p0_safe = np.clip(p0, 1e-30, 1.0)
+#
+#     tasks_not_learned = score <= min_threshold
+#     tasks_learned = score >= max_threshold
+#     tasks_learning = ~(tasks_not_learned | tasks_learned)
+#
+#     log_q_star = np.log(p0_safe) + eta * gap
+#     log_q_new = alpha * log_q_star + (1.0 - alpha) * np.log(q_safe)
+#
+#     log_q_new -= np.max(log_q_new)
+#     q_new = np.exp(log_q_new)
+#     q_new /= q_new.sum()
+#
+#     if dro_eps is not None and dro_eps > 0:
+#         q_new = kl_project_with_floor(q_new, dro_eps)
+#
+#     # print(q_new)
+#     return q_new
+
 
 @dataclass
 class Args:
@@ -273,32 +352,29 @@ class Args:
     task_probs_init: List[float] = None
     dro: int = 0
     dro_num_steps: int = 128
-    dro_eps: float = 0.01 # minimum task probability
-    dro_eta: float = 1.0 # controls sharpness of task distribution. Larger = sharper
-    dro_step_size: float = 0.5 # don't change this
+    dro_eps: float = 0.05 # minimum task probability
+    dro_eta: float = 8.0 # controls sharpness of task distribution. Larger = sharper
+    dro_step_size: float = 0.1 # don't change this
 
     # Algorithm specific arguments
-    env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
+    env_ids: List[str] = field(default_factory=lambda: [f"GridWorld{i}-v0" for i in range(0, 4 + 1)])
     total_timesteps: int =  1000000
-    learning_rate: float = 1e-3
+    learning_rate: float = 3e-3
     num_envs: int = 1
-    num_steps: int = 64
+    num_steps: int = 128
     anneal_lr: bool = False
     gamma: float = 0.99
     gae_lambda: float = 0.95
-    num_minibatches: int = 4
-    update_epochs: int = 4
+    num_minibatches: int = 1
+    update_epochs: int = 1
     norm_adv: bool = False
-    clip_coef: float = 0.2
+    clip_coef: float = 9999999
     clip_vloss: bool = True
     ent_coef: float = 0.01
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     target_kl: float = None
-
     linear: bool = True
-
-
 
     # to be filled in runtime
     batch_size: int = 0
@@ -370,7 +446,6 @@ def exponentiated_gradient_ascent_step(
     w_uniform = np.ones_like(w_new) / len(w_new)
     w_new = (1 - eps) * w_new + eps * w_uniform
     return w_new
-
 
 # ----------------------------
 # Env construction utilities
