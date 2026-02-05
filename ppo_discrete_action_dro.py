@@ -350,7 +350,7 @@ class Args:
     # Multitask + DRO
     dro_success_ref: bool = True
     task_probs_init: List[float] = None
-    dro: int = 0
+    dro: int = 1
     dro_num_steps: int = 128
     dro_eps: float = 0.05 # minimum task probability
     dro_eta: float = 8.0 # controls sharpness of task distribution. Larger = sharper

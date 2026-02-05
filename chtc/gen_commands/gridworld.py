@@ -3,12 +3,12 @@ import os
 if __name__ == "__main__":
 
     dro_eta = 8
-    dro_step_size = 0.1
+    dro_step_size = 0
     dro_eps = 0.05
 
     for lr in [3e-3]:
         for ns in [512, 1024]:
-            for dro in [0]:
+            for dro in [1]:
                 python_command = (
                     f'python ppo_discrete_action_dro.py '
                     f' --output_subdir dro_{dro}/lr_{lr}/ns_{ns} '
