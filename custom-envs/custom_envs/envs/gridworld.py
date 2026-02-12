@@ -45,7 +45,7 @@ class GridWorldEnv(gym.Env):
     """Gridworld environment with exposed MDP matrices (P, R, γ, μ₀)."""
 
     reward_goal = 1.0
-    reward_step = -0.01
+    reward_step = -0.0
 
     def __init__(self, map=None, gamma=0.99):
         super().__init__()
