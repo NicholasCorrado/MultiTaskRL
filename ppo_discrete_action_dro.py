@@ -46,21 +46,20 @@ class Args:
     eval_episodes: int = 100
 
     # Multitask + DRO
+    task_sampling_algo: str = 'slope'
     dro_success_ref: bool = True
     task_probs_init: List[float] = None
-    slope: int = 1
-    dro: int = 0
-    dro_num_steps: int = 64
+    dro_num_steps: int = 256
     dro_eps: float = 0.05 # minimum task probability
     dro_eta: float = 8.0 # controls sharpness of task distribution. Larger = sharper
     dro_step_size: float = 0.1 # don't change this
 
     # Algorithm specific arguments
-    env_ids: List[str] = field(default_factory=lambda: [f"GridWorld{i}-v0" for i in range(3, 4 + 1)])
+    env_ids: List[str] = field(default_factory=lambda: [f"GridWorld{i}-v0" for i in range(1, 4 + 1)])
     total_timesteps: int =  1000000
     learning_rate: float = 3e-3
     num_envs: int = 1
-    num_steps: int = 64
+    num_steps: int = 256
     anneal_lr: bool = False
     gamma: float = 0.99
     gae_lambda: float = 0.95
@@ -173,7 +172,6 @@ if __name__ == "__main__":
     if args.num_evals is not None:
         args.eval_freq = args.num_iterations // args.num_evals
 
-    # Seeding (kept as-is; note your original only seeds if args.seed is None)
     if args.seed is None:
         if args.run_id:
             args.seed = args.run_id
@@ -213,9 +211,6 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
-    # ----------------------------
-    # Env setup (refactored only)
-    # ----------------------------
     num_tasks = len(args.env_ids)
 
     envs = make_multitask_train_vec_env(
@@ -254,7 +249,7 @@ if __name__ == "__main__":
     logs = defaultdict(lambda: [])
 
     training_returns = [[] for _ in range(num_tasks)]
-    training_returns_avg_prev = np.ones(num_tasks) * np.nan
+    training_returns_avg_prev = None
 
     next_obs, _ = envs.reset(seed=args.seed)
     next_obs = torch.Tensor(next_obs).to(device)
@@ -294,33 +289,43 @@ if __name__ == "__main__":
                         else:
                             training_returns[tid].append(float(finfo["episode"]["r"]))
 
-            if args.dro and global_step % args.dro_num_steps == 0:
+            if global_step % args.dro_num_steps == 0:
                 training_returns_avg = np.array([np.mean(training_returns[i]) if len(training_returns[i]) > 0 else 0 for i in range(num_tasks)])
                 returns_ref = np.ones(num_tasks)
-                gap = np.clip(returns_ref - training_returns_avg, 0, np.inf)
-                # if not np.any(np.isnan(training_returns_avg)):
-                #     gap = np.abs(training_returns_avg - training_returns_avg_prev)
-                #     print('here', gap)
 
-                # if not np.any(np.isnan(gap)):
+                return_gap = np.clip(returns_ref - training_returns_avg, 0, np.inf)
+                return_slope = np.abs(training_returns_avg - training_returns_avg_prev) if training_returns_avg_prev is not None else np.zeros(num_tasks)
+                # print(return_gap, return_slope)
                 p = envs.get_task_probs()
-                # p_new = kl_regularized_dro_update(
-                #     q=p,
-                #     gap=gap,
-                #     eta=args.dro_eta,
-                #     step_size=args.dro_step_size,
-                #     p0=None,  # uniform by default
-                #     dro_eps=args.dro_eps,  # now interpreted as floor min prob
-                # )
-                p_new = curriculum_update(
-                    q=p,
-                    gap=gap,
-                    eta=args.dro_eta,
-                    step_size=args.dro_step_size,
-                    p0=None,  # uniform by default
-                    dro_eps=args.dro_eps,  # now interpreted as floor min prob
-                )
-                envs.set_task_probs(p_new)
+                if args.task_sampling_algo == 'dro':
+                    p = kl_regularized_dro_update(
+                        q=p,
+                        gap=return_gap,
+                        eta=args.dro_eta,
+                        step_size=args.dro_step_size,
+                        p0=None,  # uniform by default
+                        dro_eps=args.dro_eps,  # now interpreted as floor min prob
+                    )
+                elif args.task_sampling_algo == 'easy-to-hard':
+                    p = curriculum_update(
+                        q=p,
+                        gap=return_gap,
+                        eta=args.dro_eta,
+                        step_size=args.dro_step_size,
+                        p0=None,  # uniform by default
+                        dro_eps=args.dro_eps,  # now interpreted as floor min prob
+                    )
+                elif args.task_sampling_algo == 'slope':
+                    # print(return_slope)
+                    p = kl_regularized_dro_update(
+                        q=p,
+                        gap=return_slope,
+                        eta=args.dro_eta,
+                        step_size=args.dro_step_size,
+                        p0=None,  # uniform by default
+                        dro_eps=args.dro_eps,  # now interpreted as floor min prob
+                    )
+                envs.set_task_probs(p)
 
                 training_returns_avg_prev = training_returns_avg
                 training_returns = [[] for _ in range(num_tasks)]
