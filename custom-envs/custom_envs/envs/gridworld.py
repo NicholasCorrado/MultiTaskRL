@@ -47,9 +47,8 @@ class GridWorldEnv(gym.Env):
     reward_goal = 1.0
     reward_step = -0.01
 
-    def __init__(self, map=None, gamma=0.99):
+    def __init__(self, map=None):
         super().__init__()
-        self.gamma = gamma
         self.action_deltas = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # up, down, left, right
         self._init_from_map(map)
         self._build_mdp_matrices()
