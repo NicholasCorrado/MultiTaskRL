@@ -1,7 +1,7 @@
 import os
 import random
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -16,7 +16,8 @@ import yaml
 from stable_baselines3.common.utils import get_latest_run_id
 from torch.distributions.categorical import Categorical
 from env_utils import make_multitask_train_vec_env, make_eval_vec_env
-from task_distribution_updates import kl_regularized_dro_update, curriculum_update, smt_update
+from task_distribution_updates import kl_regularized_dro_update, curriculum_update, smt_update, kl_project_with_floor
+
 
 @dataclass
 class Args:
@@ -45,7 +46,7 @@ class Args:
     eval_episodes: int = 100
 
     # Multitask + DRO
-    task_sampling_algo: str = 'dro'
+    task_sampling_algo: str = 'easy-to-hard'
     dro_success_ref: bool = False
     task_probs_init: List[float] = None
     dro_num_steps: int = 256
@@ -259,6 +260,9 @@ if __name__ == "__main__":
     current_task_objective_weights = np.ones(num_tasks) / num_tasks
     current_task_id = envs.get_task_id()
 
+    is_task_solved = np.zeros(num_tasks)
+    task_success_buffer = [deque(maxlen=20) for i in range(num_tasks)]
+
     for iteration in range(1, args.num_iterations + 1):
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
@@ -293,6 +297,7 @@ if __name__ == "__main__":
                             training_returns[tid].append(float(finfo.get("is_success", 0.0)))
                         else:
                             training_returns[tid].append(float(finfo["episode"]["r"]))
+                        task_success_buffer[current_task_id].append(float(finfo.get("is_success", 0.0)))
                         current_task_id = envs.get_task_id()
 
             if global_step % args.dro_num_steps == 0:
@@ -341,6 +346,12 @@ if __name__ == "__main__":
                         p0=None,  # uniform by default
                         dro_eps=args.dro_eps,  # now interpreted as floor min prob
                     )
+                    for i in range(num_tasks):
+                        if len(task_success_buffer[i]) >= 20 and np.mean(task_success_buffer[i]) > 0.9:
+                            current_task_distribution[i] = 0
+                            # print('here')
+                        current_task_distribution = kl_project_with_floor(current_task_distribution, args.dro_eps)
+
                 envs.set_task_probs(current_task_distribution)
 
                 training_returns_avg_prev = training_returns_avg
@@ -404,7 +415,7 @@ if __name__ == "__main__":
                     v_clipped = b_values[mb_inds] + torch.clamp(newvalue - b_values[mb_inds], -args.clip_coef, args.clip_coef)
                     v_loss_clipped = (v_clipped - b_returns[mb_inds]) ** 2
                     if args.task_sampling_algo == 'dro_reweight':
-                        v_loss = 0.5 * (torch.max(v_loss_unclipped, v_loss_clipped) * objective_weights[mb_inds]).mean()
+                        v_loss = 0.5 * (torch.max(v_loss_unclipped, v_loss_clipped) * objective_weights[mb_inds]).sum()
                     else:
                         v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
                 else:
