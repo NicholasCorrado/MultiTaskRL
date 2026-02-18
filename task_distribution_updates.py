@@ -96,6 +96,7 @@ def curriculum_update(
     """
     q = np.asarray(q, dtype=np.float64)
     gap = np.asarray(gap, dtype=np.float64)
+
     k = len(q)
 
     eps = 0.0 if dro_eps is None else float(dro_eps)

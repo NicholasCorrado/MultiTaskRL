@@ -202,11 +202,16 @@ def make_multitask_train_vec_env(
         ps = envs.call("get_task_probs")
         return np.asarray(ps[0], dtype=np.float64)
 
+    def get_task_id() -> np.ndarray:
+        ps = envs.call("get_task_id")
+        return ps[0]
+
     def set_task_probs(p: np.ndarray) -> None:
         p = np.asarray(p, dtype=np.float64)
         p = p / p.sum()
         envs.call("set_task_probs", p)
 
+    envs.get_task_id = get_task_id
     envs.get_task_probs = get_task_probs  # type: ignore[attr-defined]
     envs.set_task_probs = set_task_probs  # type: ignore[attr-defined]
     return envs

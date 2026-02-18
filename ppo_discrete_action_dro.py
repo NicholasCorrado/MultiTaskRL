@@ -15,8 +15,7 @@ import tyro
 import yaml
 from stable_baselines3.common.utils import get_latest_run_id
 from torch.distributions.categorical import Categorical
-from env_utils import MultiTaskEnvWrapper, MultiTaskSampler, OneHotTaskWrapper, make_multitask_train_vec_env, \
-    make_eval_vec_env
+from env_utils import make_multitask_train_vec_env, make_eval_vec_env
 from task_distribution_updates import kl_regularized_dro_update, curriculum_update, smt_update
 
 @dataclass
@@ -46,8 +45,8 @@ class Args:
     eval_episodes: int = 100
 
     # Multitask + DRO
-    task_sampling_algo: str = 'slope'
-    dro_success_ref: bool = True
+    task_sampling_algo: str = 'dro'
+    dro_success_ref: bool = False
     task_probs_init: List[float] = None
     dro_num_steps: int = 256
     dro_eps: float = 0.05 # minimum task probability
@@ -91,8 +90,8 @@ class Agent(nn.Module):
         out_dim = envs.single_action_space.n
 
         if linear:
-            self.critic = nn.Sequential(layer_init(nn.Linear(in_dim, 1), std=0.01))
-            self.actor = nn.Sequential(layer_init(nn.Linear(in_dim, out_dim), std=0.01))
+            self.critic = nn.Sequential(layer_init(nn.Linear(in_dim, 1), std=0.00))
+            self.actor = nn.Sequential(layer_init(nn.Linear(in_dim, out_dim), std=0.00))
         else:
             self.critic = nn.Sequential(
                 layer_init(nn.Linear(in_dim, 64)),
@@ -243,6 +242,7 @@ if __name__ == "__main__":
     rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
     dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    objective_weights = torch.ones((args.num_steps, args.num_envs)).to(device)
 
     global_step = 0
     update_count = 0
@@ -255,6 +255,10 @@ if __name__ == "__main__":
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
 
+    current_task_distribution = envs.get_task_probs()
+    current_task_objective_weights = np.ones(num_tasks) / num_tasks
+    current_task_id = envs.get_task_id()
+
     for iteration in range(1, args.num_iterations + 1):
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
@@ -265,6 +269,7 @@ if __name__ == "__main__":
             global_step += args.num_envs
             obs[step] = next_obs
             dones[step] = next_done
+            objective_weights[step] = current_task_objective_weights[current_task_id]
 
             with torch.no_grad():
                 action, logprob, _, value = agent.get_action_and_value(next_obs)
@@ -288,18 +293,29 @@ if __name__ == "__main__":
                             training_returns[tid].append(float(finfo.get("is_success", 0.0)))
                         else:
                             training_returns[tid].append(float(finfo["episode"]["r"]))
+                        current_task_id = envs.get_task_id()
 
             if global_step % args.dro_num_steps == 0:
                 training_returns_avg = np.array([np.mean(training_returns[i]) if len(training_returns[i]) > 0 else 0 for i in range(num_tasks)])
-                returns_ref = np.ones(num_tasks)
+                return_ref = np.ones(num_tasks)
+                # return_ref = np.array([0.95, 0.93, 0.91, 0.89])
 
-                return_gap = np.clip(returns_ref - training_returns_avg, 0, np.inf)
+                return_gap = np.clip(return_ref - training_returns_avg, 0, np.inf) / return_ref
                 return_slope = np.abs(training_returns_avg - training_returns_avg_prev) if training_returns_avg_prev is not None else np.zeros(num_tasks)
                 # print(return_gap, return_slope)
-                p = envs.get_task_probs()
+
                 if args.task_sampling_algo == 'dro':
-                    p = kl_regularized_dro_update(
-                        q=p,
+                    current_task_distribution = kl_regularized_dro_update(
+                        q=current_task_distribution,
+                        gap=return_gap,
+                        eta=args.dro_eta,
+                        step_size=args.dro_step_size,
+                        p0=None,  # uniform by default
+                        dro_eps=args.dro_eps,  # now interpreted as floor min prob
+                    )
+                elif args.task_sampling_algo == 'dro_reweight':
+                    current_task_objective_weights = kl_regularized_dro_update(
+                        q=current_task_objective_weights,
                         gap=return_gap,
                         eta=args.dro_eta,
                         step_size=args.dro_step_size,
@@ -307,8 +323,8 @@ if __name__ == "__main__":
                         dro_eps=args.dro_eps,  # now interpreted as floor min prob
                     )
                 elif args.task_sampling_algo == 'easy-to-hard':
-                    p = curriculum_update(
-                        q=p,
+                    current_task_distribution = curriculum_update(
+                        q=current_task_distribution,
                         gap=return_gap,
                         eta=args.dro_eta,
                         step_size=args.dro_step_size,
@@ -317,15 +333,15 @@ if __name__ == "__main__":
                     )
                 elif args.task_sampling_algo == 'slope':
                     # print(return_slope)
-                    p = kl_regularized_dro_update(
-                        q=p,
+                    current_task_distribution = kl_regularized_dro_update(
+                        q=current_task_distribution,
                         gap=return_slope,
                         eta=args.dro_eta,
                         step_size=args.dro_step_size,
                         p0=None,  # uniform by default
                         dro_eps=args.dro_eps,  # now interpreted as floor min prob
                     )
-                envs.set_task_probs(p)
+                envs.set_task_probs(current_task_distribution)
 
                 training_returns_avg_prev = training_returns_avg
                 training_returns = [[] for _ in range(num_tasks)]
@@ -377,19 +393,28 @@ if __name__ == "__main__":
 
                 pg_loss1 = -mb_advantages * ratio
                 pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
-                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+                if args.task_sampling_algo == 'dro_reweight':
+                    pg_loss = (torch.max(pg_loss1, pg_loss2) * objective_weights[mb_inds]).sum()
+                else:
+                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 newvalue = newvalue.view(-1)
                 if args.clip_vloss:
                     v_loss_unclipped = (newvalue - b_returns[mb_inds]) ** 2
                     v_clipped = b_values[mb_inds] + torch.clamp(newvalue - b_values[mb_inds], -args.clip_coef, args.clip_coef)
                     v_loss_clipped = (v_clipped - b_returns[mb_inds]) ** 2
-                    v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+                    if args.task_sampling_algo == 'dro_reweight':
+                        v_loss = 0.5 * (torch.max(v_loss_unclipped, v_loss_clipped) * objective_weights[mb_inds]).mean()
+                    else:
+                        v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
                 else:
-                    v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
+                    if args.task_sampling_algo == 'dro_reweight':
+                        v_loss = 0.5 * (((newvalue - b_returns[mb_inds]) * objective_weights[mb_inds]) ** 2).sum()
+                    else:
+                        v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
 
                 entropy_loss = entropy.mean()
-                loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
+                loss = pg_loss - args.ent_coef * entropy_loss# + v_loss * args.vf_coef
 
                 optimizer.zero_grad()
                 loss.backward()
