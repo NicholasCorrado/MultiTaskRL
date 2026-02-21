@@ -17,7 +17,8 @@ from stable_baselines3.common.utils import get_latest_run_id
 from torch.distributions.categorical import Categorical
 
 from env_wrappers import OneHotTaskWrapper, MultiTaskEnvWrapper
-from task_distribution_updates import easy_first_curriculum_update, mirror_ascent_kl_update, learning_progress_update
+from task_distribution_updates import easy_first_curriculum_update, mirror_ascent_kl_update, learning_progress_update, \
+    hard_first_curriculum_update
 from task_samplers import MultiTaskSampler, EasyFirstTaskSampler, HardFirstTaskSampler, DROTaskSampler
 
 
@@ -48,7 +49,7 @@ class Args:
     eval_episodes: int = 100
 
     # Multitask + DRO
-    task_sampling_algo: str = 'dro'
+    task_sampling_algo: str = 'uniform'
     # init_task_probs: List[float] = None
     dro_success_ref: bool = False
     task_probs_init: List[float] = None
@@ -225,8 +226,8 @@ if __name__ == "__main__":
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
 
-    env_name = "_".join(args.env_ids)
-    env_name = "GridWorld4"
+    # env_name = "_".join(args.env_ids)
+    env_name = ""
     run_name = f"{env_name}__{args.exp_name}__{args.seed}__{int(time.time())}"
 
     if args.num_evals is not None:
@@ -373,7 +374,7 @@ if __name__ == "__main__":
 
                 if args.task_sampling_algo == 'uniform':
                     pass
-                if args.task_sampling_algo == 'dro':
+                elif args.task_sampling_algo == 'dro':
                     current_task_distribution = mirror_ascent_kl_update(
                         q=current_task_distribution,
                         gap=return_gap,
@@ -409,13 +410,11 @@ if __name__ == "__main__":
                         eps=args.dro_eps,  # now interpreted as floor min prob
                     )
                 elif args.task_sampling_algo == 'hard_first':
-                    current_task_distribution = easy_first_curriculum_update(
+                    current_task_distribution = hard_first_curriculum_update(
                         success_rates=success_rates,
                         success_threshold=0.9,
                         eps=args.dro_eps,  # now interpreted as floor min prob
                     )
-                else:
-                    raise ValueError(...)
 
                 envs.set_task_probs(current_task_distribution)
 
@@ -528,7 +527,8 @@ if __name__ == "__main__":
                 print(f"episode_success={success_avg:.2f} +/- {success_std:.2f}")
                 print()
 
-                logs[f"task_probs_{j}"].append(p_now[j])
+                logs[f"task_probs_{j}"].append(current_task_distribution[j])
+                logs[f"task_weights_{j}"].append(current_task_objective_weights[j])
                 logs[f"return_{j}"].append(return_avg)
                 logs[f"success_rate_{j}"].append(success_avg)
 
