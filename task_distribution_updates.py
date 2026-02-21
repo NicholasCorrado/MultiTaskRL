@@ -111,12 +111,11 @@ def easy_first_curriculum_update(
     return q / q.sum()
 
 def hard_first_curriculum_update(
-        task_probs: np.ndarray,
         success_rates: np.ndarray,
         eps: float,
         success_threshold: float = 0.9,
 ) -> np.ndarray:
-    k = len(task_probs)
+    k = len(success_rates)
 
     # rightmost unsolved task
     unsolved = np.where(success_rates < success_threshold)[0]
