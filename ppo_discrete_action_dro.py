@@ -15,8 +15,10 @@ import tyro
 import yaml
 from stable_baselines3.common.utils import get_latest_run_id
 from torch.distributions.categorical import Categorical
-from env_utils import make_multitask_train_vec_env, make_eval_vec_env
-from task_distribution_updates import kl_regularized_dro_update, curriculum_update, smt_update, kl_project_with_floor
+
+from env_wrappers import OneHotTaskWrapper, MultiTaskEnvWrapper
+from task_distribution_updates import easy_first_curriculum_update, mirror_ascent_kl_update, learning_progress_update
+from task_samplers import MultiTaskSampler, EasyFirstTaskSampler, HardFirstTaskSampler, DROTaskSampler
 
 
 @dataclass
@@ -46,7 +48,8 @@ class Args:
     eval_episodes: int = 100
 
     # Multitask + DRO
-    task_sampling_algo: str = 'easy-to-hard'
+    task_sampling_algo: str = 'dro'
+    # init_task_probs: List[float] = None
     dro_success_ref: bool = False
     task_probs_init: List[float] = None
     dro_num_steps: int = 256
@@ -56,7 +59,7 @@ class Args:
 
     # Algorithm specific arguments
     env_ids: List[str] = field(default_factory=lambda: [f"GridWorld{i}-v0" for i in range(1, 4 + 1)])
-    total_timesteps: int =  1000000
+    total_timesteps: int =  10000000
     learning_rate: float = 3e-3
     num_envs: int = 1
     num_steps: int = 256
@@ -68,7 +71,7 @@ class Args:
     norm_adv: bool = False
     clip_coef: float = 9999999
     clip_vloss: bool = True
-    ent_coef: float = 0.01
+    ent_coef: float = 0.00
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     target_kl: float = None
@@ -91,8 +94,8 @@ class Agent(nn.Module):
         out_dim = envs.single_action_space.n
 
         if linear:
-            self.critic = nn.Sequential(layer_init(nn.Linear(in_dim, 1), std=0.00))
-            self.actor = nn.Sequential(layer_init(nn.Linear(in_dim, out_dim), std=0.00))
+            self.critic = nn.Sequential(layer_init(nn.Linear(in_dim, 1), std=0.01))
+            self.actor = nn.Sequential(layer_init(nn.Linear(in_dim, out_dim), std=0.01))
         else:
             self.critic = nn.Sequential(
                 layer_init(nn.Linear(in_dim, 64)),
@@ -159,6 +162,63 @@ def simulate_equal_episodes_per_task(envs_eval, actor: Agent, eval_episodes_per_
         ))
     return per_task
 
+def make_multitask_train_vec_env(env_ids, num_envs, seed=None, asynchronous=False):
+    num_tasks = len(env_ids)
+    init_task_probs = np.ones(num_tasks) / num_tasks
+
+    def slot_thunk(slot_idx):
+        def _thunk():
+            sampler = MultiTaskSampler(init_task_probs)  # <-- important
+
+            task_envs = []
+            for task_id, env_id in enumerate(env_ids):
+                env = gym.make(env_id)
+                env = gym.wrappers.RecordEpisodeStatistics(env)
+                env = OneHotTaskWrapper(env, task_id=task_id, num_tasks=num_tasks)
+                task_envs.append(env)
+
+            return MultiTaskEnvWrapper(task_envs, sampler=sampler, seed=None if seed is None else seed + slot_idx)
+        return _thunk
+
+    thunks = [slot_thunk(i) for i in range(num_envs)]
+    envs = gym.vector.AsyncVectorEnv(thunks) if asynchronous else gym.vector.SyncVectorEnv(thunks)
+
+    # Provide vector-level get/set that works for both Sync/Async.
+    # We read/write through envs.call so it works in Async too.
+    def get_task_probs() -> np.ndarray:
+        ps = envs.call("get_task_probs")
+        return np.asarray(ps[0], dtype=np.float64)
+
+    def get_task_id() -> np.ndarray:
+        ps = envs.call("get_task_id")
+        return ps[0]
+
+    def set_task_probs(p: np.ndarray) -> None:
+        p = np.asarray(p, dtype=np.float64)
+        p = p / p.sum()
+        envs.call("set_task_probs", p)
+
+    envs.get_task_id = get_task_id
+    envs.get_task_probs = get_task_probs  # type: ignore[attr-defined]
+    envs.set_task_probs = set_task_probs  # type: ignore[attr-defined]
+    return envs
+
+
+def make_eval_vec_env(env_ids, asynchronous=False):
+    num_tasks = len(env_ids)
+
+    def thunk(task_id):
+        def _thunk():
+            env = gym.make(env_ids[task_id])
+            env = gym.wrappers.RecordEpisodeStatistics(env)
+            env = OneHotTaskWrapper(env, task_id=task_id, num_tasks=num_tasks)
+            return env
+        return _thunk
+
+    thunks = [thunk(t) for t in range(num_tasks)]
+    return gym.vector.AsyncVectorEnv(thunks) if asynchronous else gym.vector.SyncVectorEnv(thunks)
+
+
 if __name__ == "__main__":
     args = tyro.cli(Args)
     args.batch_size = int(args.num_envs * args.num_steps)
@@ -216,9 +276,6 @@ if __name__ == "__main__":
     envs = make_multitask_train_vec_env(
         env_ids=args.env_ids,
         num_envs=args.num_envs,
-        capture_video=args.capture_video,
-        run_name=run_name,
-        task_probs_init=args.task_probs_init,
         seed=args.seed,
         asynchronous=args.asynchronous,
     )
@@ -226,8 +283,6 @@ if __name__ == "__main__":
     # Deterministic eval vec env: one env per task
     envs_eval = make_eval_vec_env(
         env_ids=args.env_ids,
-        capture_video=args.capture_video,
-        run_name=run_name,
         asynchronous=args.asynchronous,
     )
 
@@ -261,7 +316,9 @@ if __name__ == "__main__":
     current_task_id = envs.get_task_id()
 
     is_task_solved = np.zeros(num_tasks)
-    task_success_buffer = [deque(maxlen=20) for i in range(num_tasks)]
+
+    task_buffer_length = 30
+    task_success_buffer = [deque(maxlen=task_buffer_length) for i in range(num_tasks)]
 
     for iteration in range(1, args.num_iterations + 1):
         if args.anneal_lr:
@@ -307,50 +364,58 @@ if __name__ == "__main__":
 
                 return_gap = np.clip(return_ref - training_returns_avg, 0, np.inf) / return_ref
                 return_slope = np.abs(training_returns_avg - training_returns_avg_prev) if training_returns_avg_prev is not None else np.zeros(num_tasks)
-                # print(return_gap, return_slope)
 
+
+                success_rates = np.array([
+                    np.mean(task_success_buffer[i]) if len(task_success_buffer[i]) >= task_buffer_length else 0.0
+                    for i in range(num_tasks)
+                ])
+
+                if args.task_sampling_algo == 'uniform':
+                    pass
                 if args.task_sampling_algo == 'dro':
-                    current_task_distribution = kl_regularized_dro_update(
+                    current_task_distribution = mirror_ascent_kl_update(
                         q=current_task_distribution,
                         gap=return_gap,
                         eta=args.dro_eta,
                         step_size=args.dro_step_size,
+                        eps=args.dro_eps,
                         p0=None,  # uniform by default
-                        dro_eps=args.dro_eps,  # now interpreted as floor min prob
                     )
                 elif args.task_sampling_algo == 'dro_reweight':
-                    current_task_objective_weights = kl_regularized_dro_update(
+                    current_task_objective_weights = mirror_ascent_kl_update(
                         q=current_task_objective_weights,
                         gap=return_gap,
                         eta=args.dro_eta,
                         step_size=args.dro_step_size,
+                        eps=args.dro_eps,
                         p0=None,  # uniform by default
-                        dro_eps=args.dro_eps,  # now interpreted as floor min prob
                     )
-                elif args.task_sampling_algo == 'easy-to-hard':
-                    current_task_distribution = curriculum_update(
+                elif args.task_sampling_algo == 'learning_progress':
+                    current_task_distribution = learning_progress_update(
                         q=current_task_distribution,
-                        gap=return_gap,
+                        learning_progress=return_slope,
                         eta=args.dro_eta,
                         step_size=args.dro_step_size,
+                        eps=args.dro_eps,
                         p0=None,  # uniform by default
-                        dro_eps=args.dro_eps,  # now interpreted as floor min prob
+                        success_rates=success_rates,
+                        success_threshold=0.9,
                     )
-                elif args.task_sampling_algo == 'slope':
-                    # print(return_slope)
-                    current_task_distribution = kl_regularized_dro_update(
-                        q=current_task_distribution,
-                        gap=return_slope,
-                        eta=args.dro_eta,
-                        step_size=args.dro_step_size,
-                        p0=None,  # uniform by default
-                        dro_eps=args.dro_eps,  # now interpreted as floor min prob
+                elif args.task_sampling_algo == 'easy_first':
+                    current_task_distribution = easy_first_curriculum_update(
+                        success_rates=success_rates,
+                        success_threshold=0.9,
+                        eps=args.dro_eps,  # now interpreted as floor min prob
                     )
-                    for i in range(num_tasks):
-                        if len(task_success_buffer[i]) >= 20 and np.mean(task_success_buffer[i]) > 0.9:
-                            current_task_distribution[i] = 0
-                            # print('here')
-                        current_task_distribution = kl_project_with_floor(current_task_distribution, args.dro_eps)
+                elif args.task_sampling_algo == 'hard_first':
+                    current_task_distribution = easy_first_curriculum_update(
+                        success_rates=success_rates,
+                        success_threshold=0.9,
+                        eps=args.dro_eps,  # now interpreted as floor min prob
+                    )
+                else:
+                    raise ValueError(...)
 
                 envs.set_task_probs(current_task_distribution)
 
@@ -425,11 +490,12 @@ if __name__ == "__main__":
                         v_loss = 0.5 * ((newvalue - b_returns[mb_inds]) ** 2).mean()
 
                 entropy_loss = entropy.mean()
-                loss = pg_loss - args.ent_coef * entropy_loss# + v_loss * args.vf_coef
+                loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
 
                 optimizer.zero_grad()
                 loss.backward()
-                nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
+                grad_norm = nn.utils.clip_grad_norm_(agent.parameters(), args.max_grad_norm)
+                # print(grad_norm)
                 optimizer.step()
 
             if args.target_kl is not None and approx_kl > args.target_kl:
@@ -439,6 +505,8 @@ if __name__ == "__main__":
 
         # Eval (refactored only: deterministic, equal episodes per task)
         if iteration % args.eval_freq == 0:
+            # optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
+
             print(f"Eval num_timesteps={global_step}")
             p_now = envs.get_task_probs()
             print(f"Task probs: {p_now}")
