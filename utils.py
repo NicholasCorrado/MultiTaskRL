@@ -46,6 +46,7 @@ def simulate(env, actor, eval_episodes, eval_steps=np.inf):
         logs['returns'].append(logs_episode['rewards'])
         logs['returns_avg'].append(np.mean(logs_episode['rewards']))
         try:
+            print(infos['is_success'])
             logs['successes'].append(infos['is_success'])
         except:
             logs['successes'].append(False)
@@ -66,9 +67,8 @@ def simulate_ddpg(env, actor, eval_episodes, eval_steps=np.inf, exploration_nois
 
         obs, _ = env.reset()
         done = False
-        Done = False
 
-        while not Done:
+        while not done:
 
             # ALGO LOGIC: put action logic here
             with torch.no_grad():
@@ -79,7 +79,6 @@ def simulate_ddpg(env, actor, eval_episodes, eval_steps=np.inf, exploration_nois
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, rewards, terminateds, truncateds, infos = env.step(actions)
             done = np.logical_or(terminateds, truncateds)
-            Done = done.all()
 
             # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
             obs = next_obs
@@ -87,18 +86,13 @@ def simulate_ddpg(env, actor, eval_episodes, eval_steps=np.inf, exploration_nois
 
             step += 1
 
-            num_env = len(rewards)
-
             if step >= eval_steps:
                 break
         if step >= eval_steps:
             break
 
-        logs['returns'].append(np.mean(logs_episode['rewards']))
-        try:
-            logs['successes'].append(infos['is_success'])
-        except:
-            logs['successes'].append(False)
+        logs['returns'].append(np.sum(logs_episode['rewards']))
+        logs['successes'].append(infos['final_info'][0]['is_success'])
 
     return_avg = np.mean(logs['returns'])
     return_std = np.std(logs['returns'])
