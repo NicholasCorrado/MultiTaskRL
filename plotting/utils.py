@@ -1,126 +1,19 @@
-#
-# def plot(save_dict, name, m=100000, success_threshold=None, return_cutoff=-np.inf):
-#     i = 0
-#
-#     # palette = seaborn.color_palette()
-#     print(os.getcwd())
-#
-#     for agent, info in save_dict.items():
-#         paths = info['paths']
-#         x_scale = info['x_scale']
-#         max_t = info['max_t']
-#         avgs = []
-#         for path in paths:
-#             u, t, avg = load_data(path, name=name, success_threshold=success_threshold)
-#             if avg is not None:
-#                 if max_t:
-#                     cutoff = np.where(t <= max_t/x_scale)[0]
-#                     avg = avg[cutoff]
-#                     t = t[cutoff]
-#
-#                 elif m:
-#                     avg = avg[:m]
-#                 avgs.append(avg)
-#                 t_good = t
-#
-#         if len(avgs) == 0:
-#             continue
-#         elif len(avgs) == 1:
-#             avg_of_avgs = avg
-#             q05 = np.zeros_like(avg)
-#             q95 = np.zeros_like(avg)
-#
-#         else:
-#
-#             min_l = np.inf
-#             for a in avgs:
-#                 l = len(a)
-#                 if l < min_l:
-#                     min_l = l
-#
-#             if min_l < np.inf:
-#                 for i in range(len(avgs)):
-#                     avgs[i] = avgs[i][:min_l]
-#
-#             avg_of_avgs = np.mean(avgs, axis=0)
-#
-#             # if avg_of_avgs.mean() > 0: continue
-#             # print(np.median(avg_of_avgs))
-#             # if np.median(avg_of_avgs) > 0: continue
-#
-#             std = np.std(avgs, axis=0)
-#             N = len(avgs)
-#             ci = 1.96 * std / np.sqrt(N) * 1.96
-#             q05 = avg_of_avgs - ci
-#             q95 = avg_of_avgs + ci
-#
-#
-#             # if avg_of_avgs[-10:].mean() < 4900 or N < 10: continue
-#
-#         style_kwargs = get_line_styles(agent)
-#         style_kwargs['linewidth'] = 2
-#
-#         # style_kwargs['linewidth'] = 1.5
-#
-#         style_kwargs['color'] = None
-#         # if 'PROPS' in agent:
-#         #     style_kwargs['linestyle'] = '-'
-#         #     style_kwargs['linewidth'] = 3
-#         #     # style_kwargs['color'] = 'k'
-#         #
-#         #
-#         # elif 'ppo_buffer' in agent or 'PPO-Buffer' in agent or 'b=' in agent or 'Buffer' in agent:
-#         #     style_kwargs['linestyle'] = '--'
-#         # elif 'ppo,' in agent or 'PPO,' in agent or 'PPO with' in agent or 'PPO' == agent:
-#         #     style_kwargs['linestyle'] = ':'
-#         # elif 'Priv' in agent:
-#         #     style_kwargs['linestyle'] = '-.'
-#         #
-#         # elif '0.0001' in agent:
-#         #     style_kwargs['linestyle'] = '--'
-#
-#         # print(agent, N, avg_of_avgs[-1], q05[-1], q95[-1])
-#
-#         try:
-#             times = info['times']
-#             x = times
-#         except:
-#             x = t_good * x_scale
-#             if t is None:
-#                 x = np.arange(len(avg_of_avgs))
-#             if m:
-#                 x = x[:m]
-#                 avg_of_avgs = avg_of_avgs[:m]
-#                 q05 = q05[:m]
-#                 q95 = q95[:m]
-#         plt.plot(x, avg_of_avgs, label=agent, **style_kwargs)
-#         if style_kwargs['linestyle'] == 'None':
-#             plt.fill_between(x, q05, q95, alpha=0)
-#         else:
-#             plt.fill_between(x, q05, q95, alpha=0.2)
-#         # plt.fill_between(x, q05, q95, alpha=0.2, color=style_kwargs['color'])
-#
-#         i += 1
-#     # return fig
-
-
 import os
 import warnings
 
 import numpy as np
+from matplotlib import pyplot as plt
+import seaborn as sns
+from rliable.plot_utils import _annotate_and_decorate_axis
 
-def get_data(results_dir, x_name='timestep', y_name='returns', lable_name='env_ids', id_name='task_ids', filename='evaluations.npz'):
 
-    print (results_dir)
+def get_data(results_dir, x_name='timestep', y_name='return', filename='evaluations.npz'):
+
     paths = []
     try:
         for subdir in os.listdir(results_dir):
-            if 'run_' in subdir:
-                cur_path = f'{results_dir}/{subdir}/{filename}'
-                if os.path.isfile(cur_path):
-                    paths.append(cur_path)
-                else:
-                    print (f'No file at {cur_path}!')
+            if 'run_' in subdir and os.path.exists(f'{results_dir}/{subdir}/{filename}'):
+                paths.append(f'{results_dir}/{subdir}/{filename}')
     except Exception as e:
         print(e)
 
@@ -134,16 +27,94 @@ def get_data(results_dir, x_name='timestep', y_name='returns', lable_name='env_i
 
     x = None
     length = None
-    ids = None
 
     for path in paths:
         with np.load(path) as data_file:
+            # for d in data_file:
+            #     print(d)
             if x is None: x = data_file[x_name]
             y = data_file[y_name]
 
-            y_list.append(y)
-            z = data_file[lable_name]
-            ids = data_file[id_name]
+            if length is None:
+                length = len(y)
+            if len(y) == length:
+                y_list.append(y)
 
-    return x, np.array(y_list), z, ids
+    return x, np.array(y_list)
 
+
+
+def plot_sample_efficiency_curve(frames,
+                                 point_estimates,
+                                 interval_estimates,
+                                 algorithms=None,
+                                 colors=None,
+                                 color_palette='colorblind',
+                                 linestyles=None,
+                                 figsize=(7, 5),
+                                 xlabel=r'Number of Frames (in millions)',
+                                 ylabel='Aggregate Human Normalized Score',
+                                 ax=None,
+                                 labelsize='xx-large',
+                                 ticklabelsize='xx-large',
+                                 **kwargs):
+  """Plots an aggregate metric with CIs as a function of environment frames.
+
+  Args:
+    frames: Array or list containing environment frames to mark on the x-axis.
+    point_estimates: Dictionary mapping algorithm to a list or array of point
+      estimates of the metric corresponding to the values in `frames`.
+    interval_estimates: Dictionary mapping algorithms to interval estimates
+      corresponding to the `point_estimates`. Typically, consists of stratified
+      bootstrap CIs.
+    algorithms: List of methods used for plotting. If None, defaults to all the
+      keys in `point_estimates`.
+    colors: Dictionary that maps each algorithm to a color. If None, then this
+      mapping is created based on `color_palette`.
+    color_palette: `seaborn.color_palette` object for mapping each method to a
+      color.
+    figsize: Size of the figure passed to `matplotlib.subplots`. Only used when
+      `ax` is None.
+    xlabel: Label for the x-axis.
+    ylabel: Label for the y-axis.
+    ax: `matplotlib.axes` object.
+    labelsize: Font size of the x-axis label.
+    ticklabelsize: Font size of the ticks.
+    **kwargs: Arbitrary keyword arguments.
+
+  Returns:
+    `axes.Axes` object containing the plot.
+  """
+  if ax is None:
+    _, ax = plt.subplots(figsize=figsize)
+  if algorithms is None:
+    algorithms = list(point_estimates.keys())
+  if colors is None:
+    color_palette = sns.color_palette(color_palette, n_colors=len(algorithms))
+    colors = dict(zip(algorithms, color_palette))
+  if linestyles is None:
+      linestyles = dict(zip(algorithms, '-'))
+
+  for algorithm in algorithms:
+    metric_values = point_estimates[algorithm]
+    lower, upper = interval_estimates[algorithm]
+    ax.plot(
+        frames[algorithm],
+        metric_values,
+        color=colors[algorithm],
+        linestyle=linestyles[algorithm],
+        marker=kwargs.get('marker', 'o'),
+        linewidth=kwargs.get('linewidth', 2),
+        label=algorithm)
+    ax.fill_between(
+        frames[algorithm], y1=lower, y2=upper, color=colors[algorithm], alpha=0.2)
+  kwargs.pop('marker', '0')
+  kwargs.pop('linewidth', '2')
+
+  return _annotate_and_decorate_axis(
+      ax,
+      xlabel=xlabel,
+      ylabel=ylabel,
+      labelsize=labelsize,
+      ticklabelsize=ticklabelsize,
+      **kwargs)
