@@ -54,14 +54,14 @@ class Args:
     dro_success_ref: bool = False
     task_probs_init: List[float] = None
     dro_num_steps: int = 256
-    dro_eps: float = 0.05 # minimum task probability
+    dro_eps: float = 0.01 # minimum task probability
     dro_eta: float = 8.0 # controls sharpness of task distribution. Larger = sharper
     dro_step_size: float = 0.1 # don't change this
 
     # Algorithm specific arguments
-    env_ids: List[str] = field(default_factory=lambda: [f"GridWorld{i}-v0" for i in range(1, 4 + 1)])
+    env_ids: List[str] = field(default_factory=lambda: [f"GridWorld{i}-v0" for i in range(0, 3 + 1)])
     total_timesteps: int =  10000000
-    learning_rate: float = 3e-3
+    learning_rate: float = 5e-3
     num_envs: int = 1
     num_steps: int = 256
     anneal_lr: bool = False
@@ -355,7 +355,7 @@ if __name__ == "__main__":
                             training_returns[tid].append(float(finfo.get("is_success", 0.0)))
                         else:
                             training_returns[tid].append(float(finfo["episode"]["r"]))
-                        task_success_buffer[current_task_id].append(float(finfo.get("is_success", 0.0)))
+                        task_success_buffer[tid].append(float(finfo.get("is_success", 0.0)))
                         current_task_id = envs.get_task_id()
 
             if global_step % args.dro_num_steps == 0:
@@ -363,7 +363,7 @@ if __name__ == "__main__":
                 return_ref = np.ones(num_tasks)
                 # return_ref = np.array([0.95, 0.93, 0.91, 0.89])
 
-                return_gap = np.clip(return_ref - training_returns_avg, 0, np.inf) / return_ref
+                return_gap = np.clip(return_ref - training_returns_avg) / return_ref
                 return_slope = np.abs(training_returns_avg - training_returns_avg_prev) if training_returns_avg_prev is not None else np.zeros(num_tasks)
 
 
@@ -417,6 +417,7 @@ if __name__ == "__main__":
                     )
 
                 envs.set_task_probs(current_task_distribution)
+                # print(current_task_distribution)
 
                 training_returns_avg_prev = training_returns_avg
                 training_returns = [[] for _ in range(num_tasks)]
