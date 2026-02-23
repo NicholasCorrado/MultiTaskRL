@@ -61,7 +61,7 @@ class Args:
     # Algorithm specific arguments
     env_ids: List[str] = field(default_factory=lambda: [f"GridWorld{i}-v0" for i in range(0, 3 + 1)])
     total_timesteps: int =  10000000
-    learning_rate: float = 5e-3
+    learning_rate: float = 3e-3
     num_envs: int = 1
     num_steps: int = 256
     anneal_lr: bool = False
