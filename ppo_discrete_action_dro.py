@@ -417,7 +417,6 @@ if __name__ == "__main__":
                     )
 
                 envs.set_task_probs(current_task_distribution)
-                print(current_task_distribution)
                 # print(current_task_distribution)
 
                 training_returns_avg_prev = training_returns_avg
