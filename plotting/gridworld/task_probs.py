@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 
 from rliable import library as rly
 from rliable import metrics
-from utils import plot_sample_efficiency_curve
-from utils import get_data
+from plotting.utils import plot_sample_efficiency_curve
+from plotting.utils import get_data
 
 
 def plot_metric_on_ax(ax, path_dict, linestyle_dict, color_dict, metric_name, title):

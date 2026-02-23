@@ -16,10 +16,10 @@ import yaml
 from stable_baselines3.common.utils import get_latest_run_id
 from torch.distributions.categorical import Categorical
 
-from env_wrappers import OneHotTaskWrapper, MultiTaskEnvWrapper
+from env_wrappers import OneHotTaskWrapper, MultiTaskEnvWrapper, MultiTaskSampler
 from task_distribution_updates import easy_first_curriculum_update, mirror_ascent_kl_update, learning_progress_update, \
     hard_first_curriculum_update
-from task_samplers import MultiTaskSampler, EasyFirstTaskSampler, HardFirstTaskSampler, DROTaskSampler
+# from task_samplers import MultiTaskSampler, EasyFirstTaskSampler, HardFirstTaskSampler, DROTaskSampler
 
 
 @dataclass
@@ -49,7 +49,7 @@ class Args:
     eval_episodes: int = 100
 
     # Multitask + DRO
-    task_sampling_algo: str = 'uniform'
+    task_sampling_algo: str = 'hard_first'
     # init_task_probs: List[float] = None
     dro_success_ref: bool = False
     task_probs_init: List[float] = None
@@ -417,6 +417,7 @@ if __name__ == "__main__":
                     )
 
                 envs.set_task_probs(current_task_distribution)
+                print(current_task_distribution)
                 # print(current_task_distribution)
 
                 training_returns_avg_prev = training_returns_avg

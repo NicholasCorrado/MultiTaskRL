@@ -1,11 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple
-
 import gymnasium as gym
-
 import numpy as np
-
-from task_samplers import MultiTaskSampler
-
 
 class OneHotTaskWrapper(gym.ObservationWrapper):
     """
@@ -47,6 +42,23 @@ class OneHotTaskWrapper(gym.ObservationWrapper):
         onehot = np.zeros(self.num_tasks, dtype=self.dtype)
         onehot[self.task_id] = 1.0
         return np.concatenate([onehot, obs_flat], axis=0)
+
+class MultiTaskSampler:
+    def __init__(self, probs: np.ndarray):
+        self.set_probs(probs)
+        self.num_tasks = len(probs)
+
+    def set_probs(self, probs: np.ndarray) -> None:
+        self.probs = probs / probs.sum()
+
+    def sample(self, rng: np.random.Generator) -> int:
+        return int(rng.choice(len(self.probs), p=self.probs))
+
+    def get_probs(self) -> np.ndarray:
+        return self.probs.copy()
+
+    def update(self, **kwargs):
+        raise NotImplementedError
 
 
 class MultiTaskEnvWrapper(gym.Env):

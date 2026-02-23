@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 
 from rliable import library as rly
 from rliable import metrics
-from utils import plot_sample_efficiency_curve
-from utils import get_data
+from plotting.utils import plot_sample_efficiency_curve
+from plotting.utils import get_data
 
 
 def plot_metric_on_ax(ax, path_dict, linestyle_dict, color_dict, metric_name, title):
@@ -55,12 +55,12 @@ if __name__ == "__main__":
     lr = 3e-3
     ns = 256
     path_dict = {
-        'DRO': f"../chtc/results1/gw4/results/ppo/dro/lr_{lr}/ns_{ns}",
-        'DRO, reweight': f"../chtc/results1/gw4/results/ppo/dro_reweight/lr_{lr}/ns_{ns}",
-        'Hard First': f"../chtc/results1/gw4/results/ppo/hard_first/lr_{lr}/ns_{ns}",
-        'Easy First': f"../chtc/results1/gw4/results/ppo/easy_first/lr_{lr}/ns_{ns}",
-        'Learning Progress': f"../chtc/results1/gw4/results/ppo/learning_progress/lr_{lr}/ns_{ns}",
-        'Uniform': f"../chtc/results1/gw4/results/ppo/uniform/lr_{lr}/ns_{ns}",
+        'DRO': f"../../chtc/results1/gw4/results/ppo/dro/lr_{lr}/ns_{ns}",
+        'DRO, reweight': f"../../chtc/results1/gw4/results/ppo/dro_reweight/lr_{lr}/ns_{ns}",
+        'Hard First': f"../../chtc/results1/gw4/results/ppo/hard_first/lr_{lr}/ns_{ns}",
+        'Easy First': f"../../chtc/results1/gw4/results/ppo/easy_first/lr_{lr}/ns_{ns}",
+        'Learning Progress': f"../../chtc/results1/gw4/results/ppo/learning_progress/lr_{lr}/ns_{ns}",
+        'Uniform': f"../../chtc/results1/gw4/results/ppo/uniform/lr_{lr}/ns_{ns}",
     }
     palette = seaborn.color_palette('colorblind', n_colors=10)
     color_dict = dict(zip(path_dict.keys(), palette))
