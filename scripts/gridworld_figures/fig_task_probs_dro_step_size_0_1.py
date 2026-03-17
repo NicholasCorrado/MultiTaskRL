@@ -3,14 +3,14 @@ import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
-from scripts.gridworld_figures.common import build_styles
-from scripts.gridworld_figures.common import collect_curves
-from scripts.gridworld_figures.common import plot_with_ci
-from scripts.gridworld_figures.common import save_figure
+from common import build_styles
+from common import collect_curves
+from common import plot_with_ci
+from common import save_figure
 
 
 PATH_DICT = {
-    "dro_step_size=0.1": "../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_0.1"
+    "dro_step_size=0.1": "results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_0.1"
 }
 
 

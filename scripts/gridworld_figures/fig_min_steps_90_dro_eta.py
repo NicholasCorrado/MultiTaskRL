@@ -5,20 +5,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn
 
-from plotting.utils import get_data
-from scripts.gridworld_figures.common import first_reach_threshold_updates
-from scripts.gridworld_figures.common import plot_with_ci
-from scripts.gridworld_figures.common import save_figure
+from common import first_reach_threshold_updates
+from common import get_data
+from common import plot_with_ci
+from common import save_figure
 
 
 PATHS_BY_VALUE = {
-    0: "../../results/exp_1/dro_eta=1/results/ppo/dro/lr_0.003/ns_256",
-    1: "../../results/exp_1/dro_eta=2/results/ppo/dro/lr_0.003/ns_256",
-    2: "../../results/exp_1/dro_eta=4/results/ppo/dro/lr_0.003/ns_256",
-    3: "../../results/exp_1/dro_eta=8/results/ppo/dro/lr_0.003/ns_256",
-    4: "../../results/exp_1/dro_eta=16/results/ppo/dro/lr_0.003/ns_256",
-    5: "../../results/exp_1/dro_eta=32/results/ppo/dro/lr_0.003/ns_256",
-    6: "../../results/exp_1/dro_eta=64/results/ppo/dro/lr_0.003/ns_256",
+    0: "results/exp_1/dro_eta=1/results/ppo/dro/lr_0.003/ns_256",
+    1: "results/exp_1/dro_eta=2/results/ppo/dro/lr_0.003/ns_256",
+    2: "results/exp_1/dro_eta=4/results/ppo/dro/lr_0.003/ns_256",
+    3: "results/exp_1/dro_eta=8/results/ppo/dro/lr_0.003/ns_256",
+    4: "results/exp_1/dro_eta=16/results/ppo/dro/lr_0.003/ns_256",
+    5: "results/exp_1/dro_eta=32/results/ppo/dro/lr_0.003/ns_256",
+    6: "results/exp_1/dro_eta=64/results/ppo/dro/lr_0.003/ns_256",
 }
 
 

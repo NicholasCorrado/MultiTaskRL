@@ -1,9 +1,16 @@
 import os
+import sys
+from pathlib import Path
 
 import numpy as np
 import seaborn
 from rliable import library as rly
 from rliable import metrics
+
+# Ensure repo root is importable when running scripts directly.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from plotting.utils import get_data
 from plotting.utils import plot_sample_efficiency_curve

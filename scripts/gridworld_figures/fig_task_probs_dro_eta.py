@@ -3,20 +3,20 @@ import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
-from scripts.gridworld_figures.common import build_styles
-from scripts.gridworld_figures.common import collect_curves
-from scripts.gridworld_figures.common import plot_with_ci
-from scripts.gridworld_figures.common import save_figure
+from common import build_styles
+from common import collect_curves
+from common import plot_with_ci
+from common import save_figure
 
 
 PATH_DICT = {
-    "eta=1.0": "../../results/exp_1_1/success_ref/results/ppo",
-    "eta=2.0": "../../results/exp_1_2/success_ref/results/ppo",
-    "eta=4.0": "../../results/exp_1_3/success_ref/results/ppo",
-    "eta=8.0": "../../results/exp_1_4/success_ref/results/ppo",
-    "eta=16.0": "../../results/exp_1_5/success_ref/results/ppo",
-    "eta=32.0": "../../results/exp_1_6/success_ref/results/ppo",
-    "eta=64.0": "../../results/exp_1_7/success_ref/results/ppo",
+    "eta=1.0": "results/exp_1_1/success_ref/results/ppo",
+    "eta=2.0": "results/exp_1_2/success_ref/results/ppo",
+    "eta=4.0": "results/exp_1_3/success_ref/results/ppo",
+    "eta=8.0": "results/exp_1_4/success_ref/results/ppo",
+    "eta=16.0": "results/exp_1_5/success_ref/results/ppo",
+    "eta=32.0": "results/exp_1_6/success_ref/results/ppo",
+    "eta=64.0": "results/exp_1_7/success_ref/results/ppo",
 }
 
 
