@@ -28,6 +28,8 @@ import yaml
 from stable_baselines3.common.utils import get_latest_run_id
 from torch.distributions.categorical import Categorical
 
+import copy
+from gymnasium.wrappers import NormalizeObservation, NormalizeReward
 
 # ----------------------------
 # Multitask components
@@ -100,6 +102,36 @@ class OneHotTaskWrapper(gym.ObservationWrapper):
         onehot[self.task_id] = 1.0
         return np.concatenate([onehot, obs_flat], axis=0)
 
+class PadObsActionWrapper(gym.Wrapper):
+    """Pads observations to target_obs_dim; slices actions down to the env's original action dim."""
+
+    def __init__(self, env: gym.Env, target_obs_dim: int, target_act_dim: int):
+        super().__init__(env)
+        assert isinstance(env.observation_space, gym.spaces.Box)
+        assert isinstance(env.action_space, gym.spaces.Box)
+
+        self.orig_obs_dim = int(np.prod(env.observation_space.shape))
+        self.orig_act_dim = int(np.prod(env.action_space.shape))
+
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(target_obs_dim,), dtype=np.float32
+        )
+        act_low  = np.concatenate([env.action_space.low.flatten(),  np.full(target_act_dim - self.orig_act_dim, -1.0, dtype=np.float32)])
+        act_high = np.concatenate([env.action_space.high.flatten(), np.full(target_act_dim - self.orig_act_dim,  1.0, dtype=np.float32)])
+        self.action_space = gym.spaces.Box(low=act_low, high=act_high, dtype=np.float32)
+
+    def _pad_obs(self, obs):
+        obs = np.asarray(obs, dtype=np.float32).reshape(-1)
+        return np.pad(obs, (0, self.observation_space.shape[0] - self.orig_obs_dim))
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        return self._pad_obs(obs), info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action.flat[:self.orig_act_dim])
+        return self._pad_obs(obs), reward, terminated, truncated, info
+
 
 class MultiTaskEnvWrapper(gym.Env):
     """
@@ -162,6 +194,9 @@ class MultiTaskEnvWrapper(gym.Env):
         info["task_id"] = self._task_id
         return obs, reward, terminated, truncated, info
 
+    def get_norm_stats(self):
+        return [_extract_rms(e) for e in self._envs]
+
     def close(self):
         for e in self._envs:
             try:
@@ -169,6 +204,33 @@ class MultiTaskEnvWrapper(gym.Env):
             except Exception:
                 pass
 
+def _find_wrapper(env, cls):
+    while env is not None:
+        if isinstance(env, cls):
+            return env
+        env = getattr(env, 'env', None)
+    return None
+
+def _extract_rms(env):
+    obs_w = _find_wrapper(env, NormalizeObservation)
+    rew_w = _find_wrapper(env, NormalizeReward)
+    return {
+        'obs_rms':    copy.deepcopy(obs_w.obs_rms)    if obs_w else None,
+        'return_rms': copy.deepcopy(rew_w.return_rms) if rew_w else None,
+    }
+
+def _apply_rms(env, stats):
+    obs_w = _find_wrapper(env, NormalizeObservation)
+    rew_w = _find_wrapper(env, NormalizeReward)
+    if obs_w and stats.get('obs_rms') is not None:
+        obs_w.obs_rms = copy.deepcopy(stats['obs_rms'])
+    if rew_w and stats.get('return_rms') is not None:
+        rew_w.return_rms = copy.deepcopy(stats['return_rms'])
+
+def sync_task_norm_stats(train_envs, eval_envs):
+    stats = train_envs.call("get_norm_stats")[0]
+    for task_id, task_stats in enumerate(stats):
+        _apply_rms(eval_envs.envs[task_id], task_stats)
 
 def kl_project_with_floor(z: np.ndarray, dro_eps: float) -> np.ndarray:
     """
@@ -276,16 +338,16 @@ class Args:
     hf_entity: str = ""
 
     run_id: int = None
-    asynchronous: bool = True  # if True, uses AsyncVectorEnv for training multitask wrappers
+    asynchronous: bool = False  # if True, uses AsyncVectorEnv for training multitask wrappers
 
     # Output
     output_rootdir: str = "results"
     output_subdir: str = ""
 
     # Evaluation
-    eval_freq: int = 50
+    eval_freq: int = 10
     num_evals: int = None
-    eval_episodes: int = 100
+    eval_episodes: int = 10
 
     # Multitask + DRO
     dro_success_ref: bool = True
@@ -293,13 +355,14 @@ class Args:
     dro: int = 1
     dro_num_steps: int = 4096
     dro_eps: float = 0.01 # minimum task probability
-    dro_eta: float = 16.0 # controls sharpness of task distribution. Larger = sharper
+    dro_eta: float = 8.0 # controls sharpness of task distribution. Larger = sharper
     dro_step_size: float = 0.5 # don't change this
 
     # Algorithm specific arguments
     # env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
-    env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_UMaze-v3", "PointMaze_Medium-v3", "PointMaze_Large-v3"])
-    total_timesteps: int =  10_000_000
+    # env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_UMaze-v3", "PointMaze_Medium-v3", "PointMaze_Large-v3"])
+    env_ids: List[str] = field(default_factory=lambda: [f"Swimmer-v4", "Hopper-v4"])
+    total_timesteps: int =  1_000_000
     learning_rate: float = 3e-4
     num_envs: int = 1
     num_steps: int = 4096
@@ -317,7 +380,8 @@ class Args:
     target_kl: float = 0.05
 
     linear: bool = False
-
+    normalize_obs: bool = True
+    normalize_reward: bool = True
 
 
     # to be filled in runtime
@@ -498,7 +562,8 @@ def exponentiated_gradient_ascent_step(
 # Env construction utilities
 # ----------------------------
 
-def make_base_env(env_id: str, capture_video: bool, video_path: str, render: bool) -> gym.Env:
+def make_base_env(env_id, capture_video, video_path, render,
+                  normalize_obs=False, normalize_reward=False, gamma=0.99):
     if capture_video and render:
         env = gym.make(env_id, render_mode="rgb_array", continuing_task=False, reset_target=False)
         env = gym.wrappers.RecordVideo(env, video_path)
@@ -506,8 +571,11 @@ def make_base_env(env_id: str, capture_video: bool, video_path: str, render: boo
         env = gym.make(env_id)
     env = gym.wrappers.RecordEpisodeStatistics(env)
     env = gym.wrappers.FlattenObservation(env)
+    if normalize_obs:
+        env = gym.wrappers.NormalizeObservation(env)
+    if normalize_reward:
+        env = gym.wrappers.NormalizeReward(env, gamma=gamma)
     return env
-
 
 def make_multitask_train_vec_env(
     env_ids: List[str],
@@ -517,6 +585,9 @@ def make_multitask_train_vec_env(
     task_probs_init: Optional[List[float]] = None,
     seed: Optional[int] = None,
     asynchronous: bool = False,
+    normalize_obs=False,
+    normalize_reward=False,
+    gamma=0.99
 ):
     """
     Returns a VecEnv whose elements are MultiTaskEnvWrapper instances.
@@ -539,8 +610,20 @@ def make_multitask_train_vec_env(
                 # Apply onehot at the task/env level (fixed task_id)
                 render = (slot_idx == 0 and task_id == 0)  # only record one video stream
                 video_path = f"videos/{run_name}"
-                e = make_base_env(env_id, capture_video=capture_video, video_path=video_path, render=render)
+                e = make_base_env(env_id, capture_video=capture_video, video_path=video_path, render=render,
+                                  normalize_obs=normalize_obs, normalize_reward=normalize_reward, gamma=gamma)
+
+                target_obs_dim = 0
+                target_act_dim = 0
+                for env_id in env_ids:
+                    e_tmp = make_base_env(env_id, capture_video=False, video_path="", render=False)
+                    target_obs_dim = max(target_obs_dim, int(np.prod(e_tmp.observation_space.shape)))
+                    target_act_dim = max(target_act_dim, int(np.prod(e_tmp.action_space.shape)))
+                    e_tmp.close()
+
+                e = PadObsActionWrapper(e, target_obs_dim, target_act_dim)
                 e = OneHotTaskWrapper(e, task_id=task_id, num_tasks=num_tasks)
+
                 task_envs.append(e)
 
             env = MultiTaskEnvWrapper(task_envs, sampler=sampler, seed=None if seed is None else seed + slot_idx)
@@ -572,6 +655,9 @@ def make_eval_vec_env(
     capture_video: bool,
     run_name: str,
     asynchronous: bool = True,
+    normalize_obs=False,
+    normalize_reward=False,
+    gamma=0.99
 ):
     """
     Deterministic eval: VecEnv with one env per task.
@@ -583,8 +669,20 @@ def make_eval_vec_env(
         def _thunk():
             render = (task_id == 0)
             video_path = f"videos/{run_name}_eval"
-            e = make_base_env(env_ids[task_id], capture_video=capture_video, video_path=video_path, render=render)
+            e = make_base_env(env_ids[task_id], capture_video=capture_video, video_path=video_path, render=render,
+                              normalize_obs=normalize_obs, normalize_reward=False, gamma=gamma)
+
+            target_obs_dim = 0
+            target_act_dim = 0
+            for env_id in env_ids:
+                e_tmp = make_base_env(env_id, capture_video=False, video_path="", render=False)
+                target_obs_dim = max(target_obs_dim, int(np.prod(e_tmp.observation_space.shape)))
+                target_act_dim = max(target_act_dim, int(np.prod(e_tmp.action_space.shape)))
+                e_tmp.close()
+
+            e = PadObsActionWrapper(e, target_obs_dim, target_act_dim)
             e = OneHotTaskWrapper(e, task_id=task_id, num_tasks=num_tasks)
+
             return e
 
         return _thunk
@@ -699,6 +797,9 @@ if __name__ == "__main__":
         task_probs_init=args.task_probs_init,
         seed=args.seed,
         asynchronous=args.asynchronous,
+        normalize_obs=args.normalize_obs,
+        normalize_reward=args.normalize_reward,
+        gamma=args.gamma,
     )
 
     # Deterministic eval vec env: one env per task
@@ -739,7 +840,11 @@ if __name__ == "__main__":
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
 
-    returns_ref = np.array([300, 600, 800])
+    # returns_ref = np.array([300, 600, 800])
+    # for env_id in args.env_ids:
+    #     returns_ref.append()
+    returns_ref = np.array([150, 3500])
+
 
     for iteration in range(1, args.num_iterations + 1):
         if args.anneal_lr:
