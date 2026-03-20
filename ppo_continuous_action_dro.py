@@ -88,7 +88,7 @@ class Args:
 
     dro_success_ref: bool = False
     task_probs_init: List[float] = None
-    dro_num_steps: int = 4096
+    dro_num_steps: int = 2048*6
     dro_eps: float = 1/6/4 # minimum task probability
     dro_eta: float = 8.0 # controls sharpness of task distribution. Larger = sharper
     dro_step_size: float = 0.1 # don't change this
@@ -96,11 +96,11 @@ class Args:
     # Algorithm specific arguments
     # env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
     # env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_UMaze-v3", "PointMaze_Medium-v3", "PointMaze_Large-v3"])
-    env_ids: List[str] = field(default_factory=lambda: [f"Swimmer-v4", "Hopper-v4"])
-    total_timesteps: int =  10_000_000
+    env_ids: List[str] = field(default_factory=lambda: [f"Swimmer-v4", "HalfCheetah-v4", "Hopper-v4", "Walker2d-v4", "Ant-v4", "Humanoid-v4"])
+    total_timesteps: int =  100_000_000
     learning_rate: float = 3e-4
     num_envs: int = 1
-    num_steps: int = 4096
+    num_steps: int = 2048*6
     anneal_lr: bool = False
     gamma: float = 0.99
     gae_lambda: float = 0.95
@@ -306,10 +306,14 @@ def make_base_env(env_id, capture_video, video_path, render,
         env = gym.make(env_id)
     env = gym.wrappers.RecordEpisodeStatistics(env)
     env = gym.wrappers.FlattenObservation(env)
+    env = gym.wrappers.RescaleAction(env, min_action=-1.0, max_action=1.0)  # since humaniod has different action bounds than other tasks
+    env = gym.wrappers.ClipAction(env)
     if normalize_obs:
         env = gym.wrappers.NormalizeObservation(env)
+        env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10))
     if normalize_reward:
         env = gym.wrappers.NormalizeReward(env, gamma=gamma)
+        env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10))
     return env
 
 def make_multitask_train_vec_env(
@@ -577,11 +581,6 @@ if __name__ == "__main__":
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
 
-    # returns_ref = np.array([300, 600, 800])
-    # for env_id in args.env_ids:
-    #     returns_ref.append()
-    returns_ref = np.array([150, 3500])
-
     current_task_distribution = envs.get_task_probs()
     current_task_objective_weights = np.ones(num_tasks) / num_tasks
     current_task_id = envs.get_task_id()
@@ -593,6 +592,7 @@ if __name__ == "__main__":
 
     max_returns = np.zeros(num_tasks)
     max_returns[:] = -np.inf
+    max_velocity = np.zeros(num_tasks)
 
     for iteration in range(1, args.num_iterations + 1):
         if args.anneal_lr:
@@ -632,9 +632,16 @@ if __name__ == "__main__":
                         task_success_buffer[tid].append(float(finfo.get("is_success", 0.0)))
                         current_task_id = envs.get_task_id()
 
+                        max_velocity[current_task_id] = max(max_velocity[current_task_id], finfo['x_velocity'])
+            else:
+                max_velocity[current_task_id] = max(max_velocity[current_task_id], infos['x_velocity'])
+
             if global_step % args.dro_num_steps == 0:
                 training_returns_avg = np.array([np.mean(training_returns[i]) if len(training_returns[i]) > 0 else 0 for i in range(num_tasks)])
                 returns_ref = max_returns
+                # print(max_velocity)
+                # w_forward = np.array([1, 1, 1, 1, 1, 1.25])
+                # returns_ref = max_velocity * w_forward * 1000
 
                 return_gap = np.clip(returns_ref - training_returns_avg, -np.inf, returns_ref) / returns_ref
                 return_slope = np.abs(training_returns_avg - training_returns_avg_prev) if training_returns_avg_prev is not None else np.zeros(num_tasks)
@@ -742,11 +749,27 @@ if __name__ == "__main__":
                 # if args.norm_adv:
                 #     mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
                 if args.norm_adv:
-                    for task_id in range(args.num_tasks):
-                        mask = task_ids == task_id
-                        if mask.sum() > 1:
-                            mb_advantages[mask] = (mb_advantages[mask] - mb_advantages[mask].mean()) / (
-                                        mb_advantages[mask].std() + 1e-8)
+                    # Compute per-task means and counts
+                    task_ids = b_task_ids[mb_inds]
+                    counts = torch.bincount(task_ids, minlength=num_tasks).float()  # (num_tasks,)
+                    means = torch.zeros(num_tasks, device=mb_advantages.device)
+                    means.scatter_add_(0, task_ids, mb_advantages)
+                    means /= counts.clamp(min=1)
+
+                    # Compute per-task stds
+                    sq_diff = (mb_advantages - means[task_ids]) ** 2
+                    vars_ = torch.zeros(num_tasks, device=mb_advantages.device)
+                    vars_.scatter_add_(0, task_ids, sq_diff)
+                    vars_ /= (counts - 1).clamp(min=1)
+                    stds = vars_.sqrt()
+
+                    # Normalize
+                    valid = counts[task_ids] > 1
+                    mb_advantages = torch.where(
+                        valid,
+                        (mb_advantages - means[task_ids]) / (stds[task_ids] + 1e-8),
+                        mb_advantages
+                    )
 
                 pg_loss1 = -mb_advantages * ratio
                 pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
