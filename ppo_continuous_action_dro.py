@@ -64,15 +64,15 @@ class Args:
     torch_deterministic: bool = True
     cuda: bool = True
     track: bool = False
-    wandb_project_name: str = "cleanRL"
-    wandb_entity: str = None
+    wandb_project: str = "cleanRL"
+    wandb_entity: str = "nicholascorrado"
     capture_video: bool = False
     save_model: bool = False
     upload_model: bool = False
     hf_entity: str = ""
 
     run_id: int = None
-    asynchronous: bool = False  # if True, uses AsyncVectorEnv for training multitask wrappers
+    asynchronous: bool = False # if True, uses AsyncVectorEnv for training multitask wrappers
 
     # Output
     output_rootdir: str = "results"
@@ -84,11 +84,11 @@ class Args:
     eval_episodes: int = 10
 
     # Multitask + DRO
-    task_sampling_algo: str = 'dro'
+    task_sampling_algo: str = 'uniform'
 
     dro_success_ref: bool = False
     task_probs_init: List[float] = None
-    dro_num_steps: int = 2048*6
+    dro_num_steps: int = 2048*2
     dro_eps: float = 1/6/4 # minimum task probability
     dro_eta: float = 8.0 # controls sharpness of task distribution. Larger = sharper
     dro_step_size: float = 0.1 # don't change this
@@ -96,11 +96,11 @@ class Args:
     # Algorithm specific arguments
     # env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
     # env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_UMaze-v3", "PointMaze_Medium-v3", "PointMaze_Large-v3"])
-    env_ids: List[str] = field(default_factory=lambda: [f"Swimmer-v4", "HalfCheetah-v4", "Hopper-v4", "Walker2d-v4", "Ant-v4", "Humanoid-v4"])
-    total_timesteps: int =  100_000_000
-    learning_rate: float = 3e-4
+    env_ids: List[str] = field(default_factory=lambda: [f"Swimmer-v4", "Hopper-v4"])
+    total_timesteps: int =  20_000_000
+    learning_rate: float = 1e-3
     num_envs: int = 1
-    num_steps: int = 2048*6
+    num_steps: int = 2048*2
     anneal_lr: bool = False
     gamma: float = 0.99
     gae_lambda: float = 0.95
@@ -131,7 +131,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     return layer
 
 class Agent(nn.Module):
-    def __init__(self, envs, num_tasks, linear=True):
+    def __init__(self, envs, num_tasks, linear=False):
         super().__init__()
         self.num_tasks = num_tasks
         # Observation dim without the one-hot task encoding
@@ -148,9 +148,13 @@ class Agent(nn.Module):
                 nn.Tanh(),
                 layer_init(nn.Linear(256, 256)),
                 nn.Tanh(),
+                layer_init(nn.Linear(256, 256)),
+                nn.Tanh(),
             )
             self.actor_trunk = nn.Sequential(
                 layer_init(nn.Linear(obs_dim, 256)),
+                nn.Tanh(),
+                layer_init(nn.Linear(256, 256)),
                 nn.Tanh(),
                 layer_init(nn.Linear(256, 256)),
                 nn.Tanh(),
@@ -164,7 +168,7 @@ class Agent(nn.Module):
         # Initialize heads
         for i in range(num_tasks):
             nn.init.orthogonal_(self.critic_heads[i], gain=1.0)
-            nn.init.orthogonal_(self.actor_heads[i], gain=0.01)
+            nn.init.orthogonal_(self.actor_heads[i], gain=1.0)
 
         # Per-task log std
         self.actor_logstd = nn.Parameter(torch.zeros(num_tasks, out_dim))
@@ -501,12 +505,12 @@ if __name__ == "__main__":
             torch.backends.cudnn.deterministic = args.torch_deterministic
 
     # Output path
-    args.output_dir = f"{args.output_rootdir}/{env_name}/ppo/{args.output_subdir}"
+    args.output_dir = f"{args.output_rootdir}/{args.output_subdir}"
     if args.run_id is not None:
         args.output_dir += f"/run_{args.run_id}"
     else:
-        run_id = get_latest_run_id(log_path=args.output_dir, log_name="run") + 1
-        args.output_dir += f"/run_{run_id}"
+        args.run_id = get_latest_run_id(log_path=args.output_dir, log_name="run") + 1
+        args.output_dir += f"/run_{args.run_id}"
     print(f"output_dir: {args.output_dir}")
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -517,11 +521,12 @@ if __name__ == "__main__":
         import wandb
 
         wandb.init(
-            project=args.wandb_project_name,
             entity=args.wandb_entity,
-            sync_tensorboard=True,
+            project=args.wandb_project,
+            group=args.output_subdir,
+            name=f'run_{args.run_id}',
+            sync_tensorboard=False,
             config=vars(args),
-            name=run_name,
             monitor_gym=True,
             save_code=True,
         )
@@ -587,11 +592,13 @@ if __name__ == "__main__":
 
     is_task_solved = np.zeros(num_tasks)
 
-    task_buffer_length = 30
+    task_buffer_length = 50
     task_success_buffer = [deque(maxlen=task_buffer_length) for i in range(num_tasks)]
 
     max_returns = np.zeros(num_tasks)
     max_returns[:] = -np.inf
+    min_returns = np.zeros(num_tasks)
+    min_returns[:] = +np.inf
     max_velocity = np.zeros(num_tasks)
 
     for iteration in range(1, args.num_iterations + 1):
@@ -629,12 +636,14 @@ if __name__ == "__main__":
                             training_returns[tid].append(float(finfo["episode"]["r"]))
                             if max_returns[tid] < float(finfo["episode"]["r"]):
                                 max_returns[tid] = float(finfo["episode"]["r"])
+                            if min_returns[tid] > float(finfo["episode"]["r"]):
+                                min_returns[tid] = float(finfo["episode"]["r"])
                         task_success_buffer[tid].append(float(finfo.get("is_success", 0.0)))
                         current_task_id = envs.get_task_id()
 
-                        max_velocity[current_task_id] = max(max_velocity[current_task_id], finfo['x_velocity'])
-            else:
-                max_velocity[current_task_id] = max(max_velocity[current_task_id], infos['x_velocity'])
+                        # max_velocity[current_task_id] = max(max_velocity[current_task_id], finfo['x_velocity'])
+            # else:
+            #     max_velocity[current_task_id] = max(max_velocity[current_task_id], infos['x_velocity'])
 
             if global_step % args.dro_num_steps == 0:
                 training_returns_avg = np.array([np.mean(training_returns[i]) if len(training_returns[i]) > 0 else 0 for i in range(num_tasks)])
@@ -642,12 +651,17 @@ if __name__ == "__main__":
                 # print(max_velocity)
                 # w_forward = np.array([1, 1, 1, 1, 1, 1.25])
                 # returns_ref = max_velocity * w_forward * 1000
+                return_gap = (returns_ref - training_returns_avg) / (max_returns - min_returns)
+                return_slope = np.abs(training_returns_avg - training_returns_avg_prev)/(max_returns - min_returns) if training_returns_avg_prev is not None else np.zeros(num_tasks)
+                #     return_slope = (return_slope - return_slope.min()) / return_slope.std() + 1e-3
 
-                return_gap = np.clip(returns_ref - training_returns_avg, -np.inf, returns_ref) / returns_ref
-                return_slope = np.abs(training_returns_avg - training_returns_avg_prev) if training_returns_avg_prev is not None else np.zeros(num_tasks)
-                # print(returns_ref)
-                # print(return_gap)
-
+                print(f'{return_slope=}')
+                # if num_tasks >= 1:
+                #     return_slope = (return_slope - return_slope.min()) / return_slope.std() + 1e-3
+                print(returns_ref)
+                print(training_returns_avg)
+                print(return_slope)
+                print(training_returns_avg_prev)
                 success_rates = np.array([
                     np.mean(task_success_buffer[i]) if len(task_success_buffer[i]) >= task_buffer_length else 0.0
                     for i in range(num_tasks)
@@ -674,6 +688,7 @@ if __name__ == "__main__":
                         p0=None,  # uniform by default
                     )
                 elif args.task_sampling_algo == 'learning_progress':
+                    if training_returns_avg_prev is None: continue
                     current_task_distribution = learning_progress_update(
                         q=current_task_distribution,
                         learning_progress=return_slope,
@@ -822,9 +837,10 @@ if __name__ == "__main__":
                 print(f"episode_success={success_avg:.2f} +/- {success_std:.2f}")
                 print()
 
-                logs[f"task_probs_{j}"].append(p_now[j])
-                logs[f"return_{j}"].append(return_avg)
-                logs[f"success_rate_{j}"].append(success_avg)
+                logs[f"task_sampling/task_probs_{j}"].append(p_now[j])
+                logs[f"returns/return_{j}"].append(return_avg)
+                logs[f"success_rates/success_rate_{j}"].append(success_avg)
+                logs[f"references/return_ref_{j}"].append(returns_ref[j])
 
             return_all_tasks_avg = float(np.mean(return_all_tasks))
             success_all_tasks_avg = float(np.mean(success_all_tasks))
@@ -834,10 +850,16 @@ if __name__ == "__main__":
             print(f"episode_success={success_all_tasks_avg:.2f}")
             print()
 
-            logs["return"].append(return_all_tasks_avg)
-            logs["success_rate"].append(success_all_tasks_avg)
+            logs["returns/return"].append(return_all_tasks_avg)
+            logs["success_rates/success_rate"].append(success_all_tasks_avg)
+
 
             np.savez(f"{args.output_dir}/evaluations.npz", **logs)
+            if args.track:
+                wandb_logs = {}
+                for key, val in logs.items():
+                    wandb_logs[key] = val[-1]
+                wandb.log(wandb_logs)
 
     if args.save_model:
         model_path = f"runs/{run_name}/{args.exp_name}.cleanrl_model"
