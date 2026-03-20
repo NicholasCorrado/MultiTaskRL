@@ -89,15 +89,15 @@ class Args:
     dro_success_ref: bool = False
     task_probs_init: List[float] = None
     dro_num_steps: int = 4096
-    dro_eps: float = 0.01 # minimum task probability
+    dro_eps: float = 1/6/4 # minimum task probability
     dro_eta: float = 8.0 # controls sharpness of task distribution. Larger = sharper
-    dro_step_size: float = 0.5 # don't change this
+    dro_step_size: float = 0.1 # don't change this
 
     # Algorithm specific arguments
     # env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
     # env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_UMaze-v3", "PointMaze_Medium-v3", "PointMaze_Large-v3"])
-    env_ids: List[str] = field(default_factory=lambda: [f"Hopper-v4"])
-    total_timesteps: int =  1_000_000
+    env_ids: List[str] = field(default_factory=lambda: [f"Swimmer-v4", "Hopper-v4"])
+    total_timesteps: int =  10_000_000
     learning_rate: float = 3e-4
     num_envs: int = 1
     num_steps: int = 4096
@@ -106,10 +106,10 @@ class Args:
     gae_lambda: float = 0.95
     num_minibatches: int = 32
     update_epochs: int = 16
-    norm_adv: bool = False
+    norm_adv: bool = True
     clip_coef: float = 0.2
     clip_vloss: bool = False
-    ent_coef: float = 0.03
+    ent_coef: float = 0.01
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     target_kl: float = 0.05
@@ -591,6 +591,9 @@ if __name__ == "__main__":
     task_buffer_length = 30
     task_success_buffer = [deque(maxlen=task_buffer_length) for i in range(num_tasks)]
 
+    max_returns = np.zeros(num_tasks)
+    max_returns[:] = -np.inf
+
     for iteration in range(1, args.num_iterations + 1):
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
@@ -624,18 +627,19 @@ if __name__ == "__main__":
                             training_returns[tid].append(float(finfo.get("is_success", 0.0)))
                         else:
                             training_returns[tid].append(float(finfo["episode"]["r"]))
+                            if max_returns[tid] < float(finfo["episode"]["r"]):
+                                max_returns[tid] = float(finfo["episode"]["r"])
                         task_success_buffer[tid].append(float(finfo.get("is_success", 0.0)))
                         current_task_id = envs.get_task_id()
 
             if global_step % args.dro_num_steps == 0:
                 training_returns_avg = np.array([np.mean(training_returns[i]) if len(training_returns[i]) > 0 else 0 for i in range(num_tasks)])
-                print(training_returns_avg)
-                return_ref = np.ones(num_tasks)
-                # return_ref = np.array([0.95, 0.93, 0.91, 0.89])
+                returns_ref = max_returns
 
-                return_gap = np.clip(return_ref - training_returns_avg) / return_ref
+                return_gap = np.clip(returns_ref - training_returns_avg, -np.inf, returns_ref) / returns_ref
                 return_slope = np.abs(training_returns_avg - training_returns_avg_prev) if training_returns_avg_prev is not None else np.zeros(num_tasks)
-
+                print(returns_ref)
+                print(return_gap)
 
                 success_rates = np.array([
                     np.mean(task_success_buffer[i]) if len(task_success_buffer[i]) >= task_buffer_length else 0.0
@@ -715,6 +719,7 @@ if __name__ == "__main__":
         b_advantages = advantages.reshape(-1)
         b_returns = returns.reshape(-1)
         b_values = values.reshape(-1)
+        b_task_ids = b_obs[:, :num_tasks].argmax(dim=-1)
 
         # PPO update (unchanged)
         b_inds = np.arange(args.batch_size)
@@ -734,8 +739,14 @@ if __name__ == "__main__":
                     approx_kl = ((ratio - 1) - logratio).mean()
 
                 mb_advantages = b_advantages[mb_inds]
+                # if args.norm_adv:
+                #     mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
                 if args.norm_adv:
-                    mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
+                    for task_id in range(args.num_tasks):
+                        mask = task_ids == task_id
+                        if mask.sum() > 1:
+                            mb_advantages[mask] = (mb_advantages[mask] - mb_advantages[mask].mean()) / (
+                                        mb_advantages[mask].std() + 1e-8)
 
                 pg_loss1 = -mb_advantages * ratio
                 pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - args.clip_coef, 1 + args.clip_coef)
