@@ -26,14 +26,11 @@ from torch.distributions import Normal
 import tyro
 import yaml
 from stable_baselines3.common.utils import get_latest_run_id
-from torch.distributions.categorical import Categorical
 
-import copy
-from gymnasium.wrappers import NormalizeObservation, NormalizeReward
-
-# ----------------------------
-# Multitask components
-# ----------------------------
+from env_wrappers import OneHotTaskWrapper, MultiTaskEnvWrapper, MultiTaskSampler, _find_wrapper, sync_task_norm_stats, \
+    PadObsActionWrapper
+from task_distribution_updates import easy_first_curriculum_update, mirror_ascent_kl_update, learning_progress_update, \
+    hard_first_curriculum_update
 
 @dataclass
 class MultiTaskSampler:
@@ -59,269 +56,6 @@ class MultiTaskSampler:
 
     def get_probs(self) -> np.ndarray:
         return self.probs.copy()
-
-
-class OneHotTaskWrapper(gym.ObservationWrapper):
-    """
-    Wraps a single-task env and prepends a fixed one-hot task encoding to observations.
-    This wrapper is meant to apply to EACH TASK ENV, not the VecEnv.
-    """
-
-    def __init__(self, env: gym.Env, task_id: int, num_tasks: int, dtype=np.float32):
-        super().__init__(env)
-        self.task_id = int(task_id)
-        self.num_tasks = int(num_tasks)
-        self.dtype = dtype
-
-        if not isinstance(env.observation_space, gym.spaces.Box):
-            raise TypeError(f"OneHotTaskWrapper requires Box obs, got {type(env.observation_space)}")
-
-        base = env.observation_space
-        self.base_shape = base.shape
-        self.base_dim = int(np.prod(self.base_shape))
-
-        low = np.concatenate([np.zeros(self.num_tasks, dtype=self.dtype), base.low.reshape(-1).astype(self.dtype)])
-        high = np.concatenate([np.ones(self.num_tasks, dtype=self.dtype), base.high.reshape(-1).astype(self.dtype)])
-
-        self.observation_space = gym.spaces.Box(
-            low=low,
-            high=high,
-            shape=(self.num_tasks + self.base_dim,),
-            dtype=self.dtype,
-        )
-
-    def get_task_id(self) -> int:
-        return self.task_id
-
-    def observation(self, obs):
-        obs_flat = np.asarray(obs, dtype=self.dtype).reshape(-1)
-        if obs_flat.shape[0] != self.base_dim:
-            raise ValueError(f"Base obs dim changed: expected {self.base_dim}, got {obs_flat.shape[0]}")
-
-        onehot = np.zeros(self.num_tasks, dtype=self.dtype)
-        onehot[self.task_id] = 1.0
-        return np.concatenate([onehot, obs_flat], axis=0)
-
-class PadObsActionWrapper(gym.Wrapper):
-    """Pads observations to target_obs_dim; slices actions down to the env's original action dim."""
-
-    def __init__(self, env: gym.Env, target_obs_dim: int, target_act_dim: int):
-        super().__init__(env)
-        assert isinstance(env.observation_space, gym.spaces.Box)
-        assert isinstance(env.action_space, gym.spaces.Box)
-
-        self.orig_obs_dim = int(np.prod(env.observation_space.shape))
-        self.orig_act_dim = int(np.prod(env.action_space.shape))
-
-        self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(target_obs_dim,), dtype=np.float32
-        )
-        act_low  = np.concatenate([env.action_space.low.flatten(),  np.full(target_act_dim - self.orig_act_dim, -1.0, dtype=np.float32)])
-        act_high = np.concatenate([env.action_space.high.flatten(), np.full(target_act_dim - self.orig_act_dim,  1.0, dtype=np.float32)])
-        self.action_space = gym.spaces.Box(low=act_low, high=act_high, dtype=np.float32)
-
-    def _pad_obs(self, obs):
-        obs = np.asarray(obs, dtype=np.float32).reshape(-1)
-        return np.pad(obs, (0, self.observation_space.shape[0] - self.orig_obs_dim))
-
-    def reset(self, **kwargs):
-        obs, info = self.env.reset(**kwargs)
-        return self._pad_obs(obs), info
-
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action.flat[:self.orig_act_dim])
-        return self._pad_obs(obs), reward, terminated, truncated, info
-
-
-class MultiTaskEnvWrapper(gym.Env):
-    """
-    Pools one env per task (already one-hot wrapped, each has fixed task_id).
-    On reset(): sample task_id ~ p, select that env, reset it.
-    step(): delegates to current env.
-    """
-
-    def __init__(
-        self,
-        envs: List[gym.Env],          # one env per task (already wrapped with OneHotTaskWrapper)
-        sampler: MultiTaskSampler,
-        seed: Optional[int] = None,
-    ):
-        super().__init__()
-        if len(envs) == 0:
-            raise ValueError("envs must be non-empty")
-
-        self._envs = envs
-        self.sampler = sampler
-        self._rng = np.random.default_rng(seed)
-
-        self._task_id: int = 0
-        self._env: gym.Env = self._envs[self._task_id]
-
-        # Spaces must match across tasks
-        self.observation_space = self._env.observation_space
-        self.action_space = self._env.action_space
-        for j, e in enumerate(self._envs):
-            if e.observation_space != self.observation_space:
-                raise ValueError(f"Observation space mismatch at task {j}: {e.observation_space} vs {self.observation_space}")
-            if e.action_space != self.action_space:
-                raise ValueError(f"Action space mismatch at task {j}: {e.action_space} vs {self.action_space}")
-
-    def set_task_probs(self, probs: np.ndarray) -> None:
-        self.sampler.set_probs(probs)
-
-    def get_task_probs(self) -> np.ndarray:
-        return self.sampler.get_probs()
-
-    def get_task_id(self) -> int:
-        return int(self._task_id)
-
-    def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None) -> Tuple[Any, Dict[str, Any]]:
-        if seed is not None:
-            self._rng = np.random.default_rng(seed)
-
-        self._task_id = self.sampler.sample(self._rng)
-        self._env = self._envs[self._task_id]
-
-        obs, info = self._env.reset(seed=seed, options=options)
-        info = dict(info)
-        # Important: propagate task_id through infos; RecordEpisodeStatistics will carry it to final_info
-        info["task_id"] = self._task_id
-        return obs, info
-
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self._env.step(action)
-        info = dict(info)
-        info["task_id"] = self._task_id
-        return obs, reward, terminated, truncated, info
-
-    def get_norm_stats(self):
-        return [_extract_rms(e) for e in self._envs]
-
-    def close(self):
-        for e in self._envs:
-            try:
-                e.close()
-            except Exception:
-                pass
-
-def _find_wrapper(env, cls):
-    while env is not None:
-        if isinstance(env, cls):
-            return env
-        env = getattr(env, 'env', None)
-    return None
-
-def _extract_rms(env):
-    obs_w = _find_wrapper(env, NormalizeObservation)
-    rew_w = _find_wrapper(env, NormalizeReward)
-    return {
-        'obs_rms':    copy.deepcopy(obs_w.obs_rms)    if obs_w else None,
-        'return_rms': copy.deepcopy(rew_w.return_rms) if rew_w else None,
-    }
-
-def _apply_rms(env, stats):
-    obs_w = _find_wrapper(env, NormalizeObservation)
-    rew_w = _find_wrapper(env, NormalizeReward)
-    if obs_w and stats.get('obs_rms') is not None:
-        obs_w.obs_rms = copy.deepcopy(stats['obs_rms'])
-    if rew_w and stats.get('return_rms') is not None:
-        rew_w.return_rms = copy.deepcopy(stats['return_rms'])
-
-def sync_task_norm_stats(train_envs, eval_envs):
-    stats = train_envs.call("get_norm_stats")[0]
-    for task_id, task_stats in enumerate(stats):
-        _apply_rms(eval_envs.envs[task_id], task_stats)
-
-def kl_project_with_floor(z: np.ndarray, dro_eps: float) -> np.ndarray:
-    """
-    KL projection of distribution z onto:
-        { q : q_i >= dro_eps, sum_i q_i = 1 }
-    Solves:  min_q KL(q || z)  subject to q_i >= dro_eps.
-    """
-    z = np.asarray(z, dtype=np.float64)
-    z = z / z.sum()
-    k = len(z)
-
-    free = np.ones(k, dtype=bool)
-    q = np.zeros_like(z)
-
-    while True:
-        num_clipped = (~free).sum()
-        mass_free = 1.0 - dro_eps * num_clipped
-        if mass_free < 0:
-            # infeasible floor; fallback to uniform
-            return np.ones(k, dtype=np.float64) / k
-
-        z_free_sum = z[free].sum()
-        if z_free_sum == 0:
-            q[free] = mass_free / free.sum()
-        else:
-            scale = mass_free / z_free_sum
-            q[free] = scale * z[free]
-
-        q[~free] = dro_eps
-
-        violated = free & (q < dro_eps - 1e-12)
-        if not violated.any():
-            break
-        free[violated] = False
-
-    q /= q.sum()
-    return q
-
-
-def kl_regularized_dro_update(
-    q: np.ndarray,
-    gap: np.ndarray,
-    eta: float,
-    step_size: float,
-    p0: Optional[np.ndarray] = None,
-    dro_eps: Optional[float] = None,
-) -> np.ndarray:
-    """
-    One mirror-ascent step for KL-regularized DRO:
-
-        maximize_q   gap^T q  -  (1/eta) * KL(q || p0)
-
-    Update (matches your JAX code):
-        log q_new ∝ (1-α) log q + α log p0 + step_size * gap
-        α = step_size / eta
-
-    Optionally projects onto {q_i >= dro_eps} using KL projection.
-
-    Notes:
-    - Requires q to be strictly positive if using logs. We clip for safety.
-    - Typically 0 < step_size <= eta so α ∈ [0,1].
-    """
-    q = np.asarray(q, dtype=np.float64)
-    gap = np.asarray(gap, dtype=np.float64)
-    k = len(q)
-
-    if p0 is None:
-        p0 = np.ones(k, dtype=np.float64) / k
-    else:
-        p0 = np.asarray(p0, dtype=np.float64)
-        p0 = p0 / p0.sum()
-
-    if not (eta > 0):
-        raise ValueError(f"eta must be > 0, got {eta}")
-    if not (step_size > 0):
-        raise ValueError(f"step_size must be > 0, got {step_size}")
-
-    alpha = step_size / eta  # ideally in [0,1], but we won't hard-error
-    # Make logs safe
-    q_safe = np.clip(q, 1e-30, 1.0)
-    p0_safe = np.clip(p0, 1e-30, 1.0)
-
-    log_q_new = (1.0 - alpha) * np.log(q_safe) + alpha * np.log(p0_safe) + step_size * gap
-    log_q_new -= np.max(log_q_new)  # stabilize
-    q_new = np.exp(log_q_new)
-    q_new /= q_new.sum()
-
-    if dro_eps is not None and dro_eps > 0:
-        q_new = kl_project_with_floor(q_new, dro_eps)
-
-    return q_new
 
 @dataclass
 class Args:
@@ -350,9 +84,10 @@ class Args:
     eval_episodes: int = 10
 
     # Multitask + DRO
-    dro_success_ref: bool = True
+    task_sampling_algo: str = 'dro'
+
+    dro_success_ref: bool = False
     task_probs_init: List[float] = None
-    dro: int = 1
     dro_num_steps: int = 4096
     dro_eps: float = 0.01 # minimum task probability
     dro_eta: float = 8.0 # controls sharpness of task distribution. Larger = sharper
@@ -361,7 +96,7 @@ class Args:
     # Algorithm specific arguments
     # env_ids: List[str] = field(default_factory=lambda: [f"HardGridWorldEnv{i}-v0" for i in range(1, 4 + 1)])
     # env_ids: List[str] = field(default_factory=lambda: [f"PointMaze_UMaze-v3", "PointMaze_Medium-v3", "PointMaze_Large-v3"])
-    env_ids: List[str] = field(default_factory=lambda: [f"Swimmer-v4", "Hopper-v4"])
+    env_ids: List[str] = field(default_factory=lambda: [f"Hopper-v4"])
     total_timesteps: int =  1_000_000
     learning_rate: float = 3e-4
     num_envs: int = 1
@@ -640,11 +375,16 @@ def make_multitask_train_vec_env(
         ps = envs.call("get_task_probs")
         return np.asarray(ps[0], dtype=np.float64)
 
+    def get_task_id() -> np.ndarray:
+        ps = envs.call("get_task_id")
+        return ps[0]
+
     def set_task_probs(p: np.ndarray) -> None:
         p = np.asarray(p, dtype=np.float64)
         p = p / p.sum()
         envs.call("set_task_probs", p)
 
+    envs.get_task_id = get_task_id
     envs.get_task_probs = get_task_probs  # type: ignore[attr-defined]
     envs.set_task_probs = set_task_probs  # type: ignore[attr-defined]
     return envs
@@ -807,7 +547,10 @@ if __name__ == "__main__":
         env_ids=args.env_ids,
         capture_video=args.capture_video,
         run_name=run_name,
-        asynchronous=True,
+        asynchronous=False,
+        normalize_obs=args.normalize_obs,
+        normalize_reward=args.normalize_reward,
+        gamma=args.gamma,
     )
 
     assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
@@ -827,14 +570,8 @@ if __name__ == "__main__":
     update_count = 0
     logs = defaultdict(lambda: [])
 
-    training_successes_queue = [deque(maxlen=20) for _ in range(num_tasks)]
-    training_successes = [[] for _ in range(num_tasks)]
     training_returns = [[] for _ in range(num_tasks)]
-    previous_return_avg = np.zeros(num_tasks)
-
-    use_max_return = np.zeros(num_tasks, dtype=bool)
-    max_returns = np.empty(num_tasks)
-    max_returns[:] = -np.inf
+    training_returns_avg_prev = None
 
     next_obs, _ = envs.reset(seed=args.seed)
     next_obs = torch.Tensor(next_obs).to(device)
@@ -845,6 +582,14 @@ if __name__ == "__main__":
     #     returns_ref.append()
     returns_ref = np.array([150, 3500])
 
+    current_task_distribution = envs.get_task_probs()
+    current_task_objective_weights = np.ones(num_tasks) / num_tasks
+    current_task_id = envs.get_task_id()
+
+    is_task_solved = np.zeros(num_tasks)
+
+    task_buffer_length = 30
+    task_success_buffer = [deque(maxlen=task_buffer_length) for i in range(num_tasks)]
 
     for iteration in range(1, args.num_iterations + 1):
         if args.anneal_lr:
@@ -875,58 +620,76 @@ if __name__ == "__main__":
                 for finfo in infos["final_info"]:
                     if finfo and "episode" in finfo:
                         tid = int(finfo["task_id"])
-                        # if args.dro_success_ref:
-                        #     training_returns[tid].append(float(finfo.get("is_success", finfo.get("success", 0.0))))
-                        # else:
-                        if float(finfo["episode"]["r"]) > max_returns[tid]:
-                            max_returns[tid] = float(finfo["episode"]["r"])
-                        training_returns[tid].append(float(finfo["episode"]["r"]))
-                        training_successes[tid].append(float(finfo.get("is_success", finfo.get("success", 0.0))))
-                        training_successes_queue[tid].append(float(finfo.get("is_success", finfo.get("success", 0.0))))
+                        if args.dro_success_ref:
+                            training_returns[tid].append(float(finfo.get("is_success", 0.0)))
+                        else:
+                            training_returns[tid].append(float(finfo["episode"]["r"]))
+                        task_success_buffer[tid].append(float(finfo.get("is_success", 0.0)))
+                        current_task_id = envs.get_task_id()
 
-            if args.dro and global_step % args.dro_num_steps == 0:
-                training_returns_avg = np.array(
-                    [np.mean(training_returns[i]) if len(training_returns[i]) > 0 else 0 for i in range(num_tasks)]
-                )
-                training_success_rate = np.array(
-                    [np.mean(training_successes[i]) if len(training_successes[i]) > 0 else 0 for i in range(num_tasks)]
-                )
+            if global_step % args.dro_num_steps == 0:
+                training_returns_avg = np.array([np.mean(training_returns[i]) if len(training_returns[i]) > 0 else 0 for i in range(num_tasks)])
+                print(training_returns_avg)
+                return_ref = np.ones(num_tasks)
+                # return_ref = np.array([0.95, 0.93, 0.91, 0.89])
 
-                for tid in range(num_tasks):
+                return_gap = np.clip(return_ref - training_returns_avg) / return_ref
+                return_slope = np.abs(training_returns_avg - training_returns_avg_prev) if training_returns_avg_prev is not None else np.zeros(num_tasks)
 
-                    # print(len(training_successes_queue[tid]), np.mean(training_successes_queue[tid]))
-                    if (len(training_successes_queue[tid]) >= 20 and np.mean(training_successes_queue[tid]) > 0.5):
-                        use_max_return[tid] = True
 
-                    if use_max_return[tid]:
-                        returns_ref[tid] = max_returns[tid]
+                success_rates = np.array([
+                    np.mean(task_success_buffer[i]) if len(task_success_buffer[i]) >= task_buffer_length else 0.0
+                    for i in range(num_tasks)
+                ])
 
-                gap = np.clip(returns_ref - training_returns_avg, 0, np.inf) / returns_ref
+                if args.task_sampling_algo == 'uniform':
+                    pass
+                elif args.task_sampling_algo == 'dro':
+                    current_task_distribution = mirror_ascent_kl_update(
+                        q=current_task_distribution,
+                        gap=return_gap,
+                        eta=args.dro_eta,
+                        step_size=args.dro_step_size,
+                        eps=args.dro_eps,
+                        p0=None,  # uniform by default
+                    )
+                elif args.task_sampling_algo == 'dro_reweight':
+                    current_task_objective_weights = mirror_ascent_kl_update(
+                        q=current_task_objective_weights,
+                        gap=return_gap,
+                        eta=args.dro_eta,
+                        step_size=args.dro_step_size,
+                        eps=args.dro_eps,
+                        p0=None,  # uniform by default
+                    )
+                elif args.task_sampling_algo == 'learning_progress':
+                    current_task_distribution = learning_progress_update(
+                        q=current_task_distribution,
+                        learning_progress=return_slope,
+                        eta=args.dro_eta,
+                        step_size=args.dro_step_size,
+                        eps=args.dro_eps,
+                        p0=None,  # uniform by default
+                        success_rates=success_rates,
+                        success_threshold=0.9,
+                    )
+                elif args.task_sampling_algo == 'easy_first':
+                    current_task_distribution = easy_first_curriculum_update(
+                        success_rates=success_rates,
+                        success_threshold=0.9,
+                        eps=args.dro_eps,  # now interpreted as floor min prob
+                    )
+                elif args.task_sampling_algo == 'hard_first':
+                    current_task_distribution = hard_first_curriculum_update(
+                        success_rates=success_rates,
+                        success_threshold=0.9,
+                        eps=args.dro_eps,  # now interpreted as floor min prob
+                    )
 
-                p = envs.get_task_probs()
-                # p_new = exponentiated_gradient_ascent_step(
-                #     args,
-                #     p,
-                #     training_returns_avg,
-                #     returns_ref,
-                #     previous_return_avg,
-                #     learning_rate=args.dro_learning_rate,
-                #     eps=args.dro_eps,
-                # )
-                p_new = kl_regularized_dro_update(
-                    q=p,
-                    gap=gap,
-                    eta=args.dro_eta,
-                    step_size=args.dro_step_size,
-                    p0=None,  # uniform by default
-                    dro_eps=args.dro_eps,  # now interpreted as floor min prob
-                )
-                envs.set_task_probs(p_new)
-                # print(f'refs: {returns_ref}')
-                # print(f"gaps: {gap}")
-                # print(f"Task probs: {p}")
+                envs.set_task_probs(current_task_distribution)
+                # print(current_task_distribution)
 
-                previous_return_avg = training_returns_avg
+                training_returns_avg_prev = training_returns_avg
                 training_returns = [[] for _ in range(num_tasks)]
 
         # bootstrap value if not done (unchanged)
@@ -1008,6 +771,8 @@ if __name__ == "__main__":
 
             logs["timestep"].append(global_step)
             logs["update"].append(update_count)
+
+            sync_task_norm_stats(envs, envs_eval)
 
             per_task_stats = simulate_equal_episodes_per_task(envs_eval, agent, eval_episodes_per_task=args.eval_episodes)
 

@@ -1,6 +1,9 @@
+import copy
 from typing import Any, Dict, List, Optional, Tuple
 import gymnasium as gym
 import numpy as np
+from gymnasium.wrappers import NormalizeObservation, NormalizeReward
+
 
 class OneHotTaskWrapper(gym.ObservationWrapper):
     """
@@ -59,6 +62,36 @@ class MultiTaskSampler:
 
     def update(self, **kwargs):
         raise NotImplementedError
+
+class PadObsActionWrapper(gym.Wrapper):
+    """Pads observations to target_obs_dim; slices actions down to the env's original action dim."""
+
+    def __init__(self, env: gym.Env, target_obs_dim: int, target_act_dim: int):
+        super().__init__(env)
+        assert isinstance(env.observation_space, gym.spaces.Box)
+        assert isinstance(env.action_space, gym.spaces.Box)
+
+        self.orig_obs_dim = int(np.prod(env.observation_space.shape))
+        self.orig_act_dim = int(np.prod(env.action_space.shape))
+
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(target_obs_dim,), dtype=np.float32
+        )
+        act_low  = np.concatenate([env.action_space.low.flatten(),  np.full(target_act_dim - self.orig_act_dim, -1.0, dtype=np.float32)])
+        act_high = np.concatenate([env.action_space.high.flatten(), np.full(target_act_dim - self.orig_act_dim,  1.0, dtype=np.float32)])
+        self.action_space = gym.spaces.Box(low=act_low, high=act_high, dtype=np.float32)
+
+    def _pad_obs(self, obs):
+        obs = np.asarray(obs, dtype=np.float32).reshape(-1)
+        return np.pad(obs, (0, self.observation_space.shape[0] - self.orig_obs_dim))
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        return self._pad_obs(obs), info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action.flat[:self.orig_act_dim])
+        return self._pad_obs(obs), reward, terminated, truncated, info
 
 
 class MultiTaskEnvWrapper(gym.Env):
@@ -125,9 +158,51 @@ class MultiTaskEnvWrapper(gym.Env):
         info["task_id"] = self._task_id
         return obs, reward, terminated, truncated, info
 
+    def get_norm_stats(self):
+        return [_extract_rms(e) for e in self._envs]
+
     def close(self):
         for e in self._envs:
             try:
                 e.close()
             except Exception:
                 pass
+
+def _find_wrapper(env, cls):
+    while env is not None:
+        if isinstance(env, cls):
+            return env
+        env = getattr(env, 'env', None)
+    return None
+
+def _extract_rms(env):
+    obs_w = _find_wrapper(env, NormalizeObservation)
+    rew_w = _find_wrapper(env, NormalizeReward)
+    return {
+        'obs_rms':    copy.deepcopy(obs_w.obs_rms)    if obs_w else None,
+        'return_rms': copy.deepcopy(rew_w.return_rms) if rew_w else None,
+    }
+
+def _apply_rms(env, stats):
+    obs_w = _find_wrapper(env, NormalizeObservation)
+    rew_w = _find_wrapper(env, NormalizeReward)
+    if obs_w and stats.get('obs_rms') is not None:
+        obs_w.obs_rms = copy.deepcopy(stats['obs_rms'])
+    if rew_w and stats.get('return_rms') is not None:
+        rew_w.return_rms = copy.deepcopy(stats['return_rms'])
+
+def sync_task_norm_stats(train_envs, eval_envs):
+    stats = train_envs.call("get_norm_stats")[0]
+    for task_id, task_stats in enumerate(stats):
+        obs_w = _find_wrapper(eval_envs.envs[task_id], NormalizeObservation)
+        if obs_w is None:
+            raise RuntimeError(
+                f"NormalizeObservation not found in eval env {task_id}. "
+                f"Top-level type: {type(eval_envs.envs[task_id])}"
+            )
+        if task_stats['obs_rms'] is None:
+            raise RuntimeError(
+                f"obs_rms is None for task {task_id} — "
+                f"NormalizeObservation missing from training env chain?"
+            )
+        obs_w.obs_rms = copy.deepcopy(task_stats['obs_rms'])
