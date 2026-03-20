@@ -645,8 +645,8 @@ if __name__ == "__main__":
 
                 return_gap = np.clip(returns_ref - training_returns_avg, -np.inf, returns_ref) / returns_ref
                 return_slope = np.abs(training_returns_avg - training_returns_avg_prev) if training_returns_avg_prev is not None else np.zeros(num_tasks)
-                print(returns_ref)
-                print(return_gap)
+                # print(returns_ref)
+                # print(return_gap)
 
                 success_rates = np.array([
                     np.mean(task_success_buffer[i]) if len(task_success_buffer[i]) >= task_buffer_length else 0.0
