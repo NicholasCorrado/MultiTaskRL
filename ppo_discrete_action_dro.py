@@ -306,7 +306,9 @@ if __name__ == "__main__":
     logs = defaultdict(lambda: [])
 
     training_returns = [[] for _ in range(num_tasks)]
+    training_values = [[] for _ in range(num_tasks)]
     training_returns_avg_prev = None
+    training_values_avg_prev = None
 
     next_obs, _ = envs.reset(seed=args.seed)
     next_obs = torch.Tensor(next_obs).to(device)
@@ -336,6 +338,10 @@ if __name__ == "__main__":
             with torch.no_grad():
                 action, logprob, _, value = agent.get_action_and_value(next_obs)
                 values[step] = value.flatten()
+                current_task_ids = next_obs[:, :num_tasks].argmax(dim=1).detach().cpu().numpy()
+                current_values = value.flatten().detach().cpu().numpy()
+                for env_idx, task_id in enumerate(current_task_ids):
+                    training_values[int(task_id)].append(float(current_values[env_idx]))
 
             actions[step] = action
             logprobs[step] = logprob
@@ -360,11 +366,13 @@ if __name__ == "__main__":
 
             if global_step % args.dro_num_steps == 0:
                 training_returns_avg = np.array([np.mean(training_returns[i]) if len(training_returns[i]) > 0 else 0 for i in range(num_tasks)])
+                training_values_avg = np.array([np.mean(training_values[i]) if len(training_values[i]) > 0 else 0 for i in range(num_tasks)])
                 return_ref = np.ones(num_tasks)
                 # return_ref = np.array([0.95, 0.93, 0.91, 0.89])
 
                 return_gap = np.clip(return_ref - training_returns_avg) / return_ref
                 return_slope = np.abs(training_returns_avg - training_returns_avg_prev) if training_returns_avg_prev is not None else np.zeros(num_tasks)
+                value_slope = np.abs(training_values_avg - training_values_avg_prev) if training_values_avg_prev is not None else np.zeros(num_tasks)
 
 
                 success_rates = np.array([
@@ -403,6 +411,17 @@ if __name__ == "__main__":
                         success_rates=success_rates,
                         success_threshold=0.9,
                     )
+                elif args.task_sampling_algo == 'learning_progress_v':
+                    current_task_distribution = learning_progress_update(
+                        q=current_task_distribution,
+                        learning_progress=value_slope,
+                        eta=args.dro_eta,
+                        step_size=args.dro_step_size,
+                        eps=args.dro_eps,
+                        p0=None,  # uniform by default
+                        success_rates=success_rates,
+                        success_threshold=0.9,
+                    )
                 elif args.task_sampling_algo == 'easy_first':
                     current_task_distribution = easy_first_curriculum_update(
                         success_rates=success_rates,
@@ -420,7 +439,9 @@ if __name__ == "__main__":
                 # print(current_task_distribution)
 
                 training_returns_avg_prev = training_returns_avg
+                training_values_avg_prev = training_values_avg
                 training_returns = [[] for _ in range(num_tasks)]
+                training_values = [[] for _ in range(num_tasks)]
 
         # bootstrap value if not done (unchanged)
         with torch.no_grad():
