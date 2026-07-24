@@ -18,6 +18,7 @@ mkdir local
 python -m pip install -r requirements.txt --target local
 python -m pip install 'gymnasium[mujoco]==0.29.1' --target local
 python -m pip install 'mujoco==2.3.5' --target mujoco_local
+python -m pip install 'gymnasium-robotics==1.2.4' --target local  # PointMaze_*-v3 envs; 1.2.4 keeps gymnasium 0.29.1
 export PYTHONPATH=local:$PYTHONPATH
 export PYTHONPATH=custom-envs:$PYTHONPATH # pip install -e fails on chtc because we don't have admin privileges .
 $cmd

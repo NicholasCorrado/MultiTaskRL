@@ -55,19 +55,27 @@ if __name__ == "__main__":
     lr = 3e-3
     ns = 256
     path_dict = {
-        'DRO': f"../chtc/results1/gw4/results/ppo/dro/lr_{lr}/ns_{ns}",
-        'DRO, reweight': f"../chtc/results1/gw4/results/ppo/dro_reweight/lr_{lr}/ns_{ns}",
-        'Hard First': f"../chtc/results1/gw4/results/ppo/hard_first/lr_{lr}/ns_{ns}",
-        'Easy First': f"../chtc/results1/gw4/results/ppo/easy_first/lr_{lr}/ns_{ns}",
-        'Learning Progress': f"../chtc/results1/gw4/results/ppo/learning_progress/lr_{lr}/ns_{ns}",
-        'Uniform': f"../chtc/results1/gw4/results/ppo/uniform/lr_{lr}/ns_{ns}",
+        # 'DRO': f"../chtc/results1/gw4/results/ppo/dro/lr_{lr}/ns_{ns}",
+        # 'DRO, reweight': f"../chtc/results1/gw4/results/ppo/dro_reweight/lr_{lr}/ns_{ns}",
+        # 'Hard First': f"../chtc/results1/gw4/results/ppo/hard_first/lr_{lr}/ns_{ns}",
+        # 'Easy First': f"../chtc/results1/gw4/results/ppo/easy_first/lr_{lr}/ns_{ns}",
+        # 'Learning Progress': f"../chtc/results1/gw4/results/ppo/learning_progress/lr_{lr}/ns_{ns}",
+        # 'Uniform': f"../chtc/results1/gw4/results/ppo/uniform/lr_{lr}/ns_{ns}",
+        'eta=1.0': f"../../results/exp_1_1/success_ref/results/ppo",
+        'eta=2.0': f"../../results/exp_1_2/success_ref/results/ppo",
+        'eta=4.0': f"../../results/exp_1_3/success_ref/results/ppo",
+        'eta=8.0': f"../../results/exp_1_4/success_ref/results/ppo",
+        'eta=16.0': f"../../results/exp_1_5/success_ref/results/ppo",
+        'eta=32.0': f"../../results/exp_1_6/success_ref/results/ppo",
+        'eta=64.0': f"../../results/exp_1_7/success_ref/results/ppo",
     }
+    n = 4
     palette = seaborn.color_palette('colorblind', n_colors=10)
     color_dict = dict(zip(path_dict.keys(), palette))
     linestyle_dict = {k: '-' for k in path_dict.keys()}
 
-    for task_i in range(4):
-        ax = plt.subplot(1,4,task_i+1)
+    for task_i in range(n):
+        ax = plt.subplot(1,n,task_i+1)
         plot_metric_on_ax(
             ax,
             path_dict,

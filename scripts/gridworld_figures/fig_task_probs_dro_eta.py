@@ -1,6 +1,6 @@
 import matplotlib
 
-matplotlib.use("TkAgg")
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from common import build_styles

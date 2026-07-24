@@ -2,6 +2,9 @@
 
 One script per figure entrypoint:
 
+- `fig_success_avg_baselines.py`
+- `fig_success_tasks_baselines.py`
+- `fig_task_probs_baselines.py`
 - `fig_success_avg_learning_progress_dro_step_size.py`
 - `fig_success_tasks_dro_step_size.py`
 - `fig_task_probs_dro_eta.py`

@@ -55,12 +55,20 @@ if __name__ == "__main__":
     lr = 3e-3
     ns = 256
     path_dict = {
-        'DRO': f"../../chtc/results1/gw4/results/ppo/dro/lr_{lr}/ns_{ns}",
-        'DRO, reweight': f"../../chtc/results1/gw4/results/ppo/dro_reweight/lr_{lr}/ns_{ns}",
-        'Hard First': f"../../chtc/results1/gw4/results/ppo/hard_first/lr_{lr}/ns_{ns}",
-        'Easy First': f"../../chtc/results1/gw4/results/ppo/easy_first/lr_{lr}/ns_{ns}",
-        'Learning Progress': f"../../chtc/results1/gw4/results/ppo/learning_progress/lr_{lr}/ns_{ns}",
-        'Uniform': f"../../chtc/results1/gw4/results/ppo/uniform/lr_{lr}/ns_{ns}",
+        # 'DRO': f"../chtc/results1/gw4/results/ppo/dro/lr_{lr}/ns_{ns}",
+        # 'DRO, reweight': f"../chtc/results1/gw4/results/ppo/dro_reweight/lr_{lr}/ns_{ns}",
+        # 'Hard First': f"../chtc/results1/gw4/results/ppo/hard_first/lr_{lr}/ns_{ns}",
+        # 'Easy First': f"../chtc/results1/gw4/results/ppo/easy_first/lr_{lr}/ns_{ns}",
+        # 'Learning Progress': f"../chtc/results1/gw4/results/ppo/learning_progress/lr_{lr}/ns_{ns}",
+        # 'Uniform': f"../chtc/results1/gw4/results/ppo/uniform/lr_{lr}/ns_{ns}",
+        'dro_step_size=0.01': f"../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_0.01",
+        'dro_step_size=0.05': f"../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_0.05",
+        'dro_step_size=0.1': f"../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_0.1",
+        'dro_step_size=0.2': f"../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_0.2",
+        'dro_step_size=0.4': f"../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_0.4",
+        'dro_step_size=0.6': f"../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_0.6",
+        'dro_step_size=0.8': f"../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_0.8",
+        'dro_step_size=1.0': f"../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_1.0",
     }
     palette = seaborn.color_palette('colorblind', n_colors=10)
     color_dict = dict(zip(path_dict.keys(), palette))

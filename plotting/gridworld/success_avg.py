@@ -25,7 +25,7 @@ def plot(x_dict, y_dict, linestyle_dict, color_dict):
         interval_estimates=cis,
         ax=ax,
         algorithms=None,
-        xlabel='Update',
+        xlabel='Timestep',
         ylabel=f'Success Rate',
         labelsize='large',
         ticklabelsize='large',
@@ -34,7 +34,7 @@ def plot(x_dict, y_dict, linestyle_dict, color_dict):
         marker='',
     )
     plt.legend()
-    plt.title(f'Learning Progress \n - \n Average success rate over all tasks', fontsize='large')
+    # plt.title(f'Average success rate over all tasks', fontsize='large')
     plt.ylim(0,1.1)
 
     # Use scientific notation for x-axis
@@ -62,39 +62,39 @@ if __name__ == "__main__":
 
     # save_title = 'dro/dro_eta'
     # for i in [1, 2, 4, 8, 16, 32, 64]:
-    #     path_dict[f'dro/dro_eta={i}'] = f'../../results/exp_1/dro_eta={i}/results/ppo/dro/lr_0.003/ns_256'
+    #     path_dict[rf'$\eta$={i}'] = f'../../results/exp_1/dro_eta={i}/results/ppo/dro/lr_0.003/ns_256'
 
     # save_title = 'dro/dro_step_size'
     # for i in [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]:
-    #     path_dict[f'dro/dro_step_size={i}'] = f'../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_{i}'
+    #     path_dict[rf'$\alpha$={i}'] = f'../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_{i}'
 
     # save_title = 'dro/dro_num_steps'
     # for i in [16, 32, 64, 128, 256, 512, 1024]:
-    #     path_dict[f'dro/dro_num_steps={i}'] = f'../../results/exp_3_1/success_ref/results/ppo/dro/dro_num_steps_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_3_1/success_ref/results/ppo/dro/dro_num_steps_{i}'
 
     # save_title = 'dro/num_steps'
     # for i in [256, 512, 1024, 2048]:
-    #     path_dict[f'dro/num_steps={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/dro/num_steps_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/dro/num_steps_{i}'
 
     # save_title = 'learning_progress/num_steps'
     # for i in [256, 512, 1024, 2048]:
-    #     path_dict[f'learning_progress/num_steps={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/learning_progress/num_steps_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/learning_progress/num_steps_{i}'
 
     # save_title = 'uniform/num_steps'
     # for i in [256, 512, 1024, 2048]:
-    #     path_dict[f'uniform/num_steps={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/uniform/num_steps_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/uniform/num_steps_{i}'
 
     # save_title = 'learning_progress/dro_eta'
     # for i in [1, 2, 4, 8, 16, 32, 64]:
-    #     path_dict[f'learning_progress/dro_eta={i}'] = f'../../results/exp_lp_dro_eta/dro_eta={i}/results/ppo/learning_progress/dro_eta_0.2'
+    #     path_dict[f'f={i}'] = f'../../results/exp_lp_dro_eta/dro_eta={i}/results/ppo/learning_progress/dro_eta_0.2'
 
     # save_title = 'learning_progress/dro_num_steps'
     # for i in [16, 32, 64, 128, 256, 512, 1024]:
-    #     path_dict[f'learning_progress/dro_num_steps={i}'] = f'../../results/exp_lp_dro_ns/success_ref/results/ppo/learning_progress/dro_num_steps_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_lp_dro_ns/success_ref/results/ppo/learning_progress/dro_num_steps_{i}'
 
     save_title = 'learning_progress/dro_step_size'
     for i in [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]:
-        path_dict[f'learning_progress/dro_step_size={i}'] = f'../../results/exp_lp_dro_step_size/success_ref/results/ppo/learning_progress/dro_step_size_{i}'
+        path_dict[rf'$\alpha$={i}'] = f'../../results/exp_lp_dro_step_size/success_ref/results/ppo/learning_progress/dro_step_size_{i}'
 
 
     # path_dict = {
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     color_palette = iter(seaborn.color_palette('colorblind', n_colors=10))
 
     for key, results_dir in path_dict.items():
-            x, y = get_data(results_dir, x_name='update',y_name=f'success_rate')
+            x, y = get_data(results_dir, x_name='timestep',y_name=f'success_rate')
             T = (int)(len(x)) # reduce this value if you want to truncate the data
             if y is not None:
                 x_dict[key] = x[:T]

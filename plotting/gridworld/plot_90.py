@@ -25,7 +25,7 @@ def first_reach_threshold_updates(x, y, threshold=0.9):
     return np.array(first_updates, dtype=float)
 
 
-def plot(x_dict, y_dict, linestyle_dict, color_dict):
+def plot(x_dict, y_dict, linestyle_dict, color_dict, x_name = 'dro_eta'):
     results_dict = {algorithm: score for algorithm, score in y_dict.items()}
     aggr_func = lambda scores: np.array([metrics.aggregate_mean([scores[..., frame]]) for frame in range(scores.shape[-1])])
     scores, cis = rly.get_interval_estimates(results_dict, aggr_func, reps=1000)
@@ -36,16 +36,18 @@ def plot(x_dict, y_dict, linestyle_dict, color_dict):
         interval_estimates=cis,
         ax=ax,
         algorithms=None,
-        xlabel='Task value (dro_eta)',
-        ylabel='Update at first 90% success',
+        xlabel=x_name,
+        ylabel='Timestep at first 90% success',
         labelsize='large',
         ticklabelsize='large',
         linestyles=linestyle_dict,
         colors=color_dict,
         marker='',
     )
-    plt.legend()
-    plt.title('First update reaching 90% success', fontsize='large')
+    # plt.legend()
+    # plt.xticks(rotation=45, ha='right')
+    # plt.xticks(fontsize=10)
+    # plt.title('First update reaching 90% success', fontsize='large')
 
     # Use scientific notation for y-axis
     plt.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
@@ -70,57 +72,71 @@ if __name__ == "__main__":
 
     path_dict = {}
 
-    # key = 'dro/dro_eta'
+    key = 'dro/dro_eta'
+    x_name = 'dro_eta'
     # vals = [1, 2, 4, 8, 16, 32, 64]
-    # for i in vals:
-    #     path_dict[f'dro/dro_eta={i}'] = f'../../results/exp_1/dro_eta={i}/results/ppo/dro/lr_0.003/ns_256'
+    vals = [0, 1, 2, 3, 4, 5, 6]
+    for i in vals:
+        path_dict[f'f={i}'] = f'../../results/exp_1/dro_eta={(2 ** i)}/results/ppo/dro/lr_0.003/ns_256'
 
     # key = 'dro/dro_step_size'
+    # x_name = 'dro_step_size'
     # vals = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
     # for i in vals:
-    #     path_dict[f'dro/dro_step_size={i}'] = f'../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_2/success_ref/results/ppo/dro/dro_eta_16/dro_step_size_{i}'
 
     # key = 'dro/dro_num_steps'
-    # vals = [16, 32, 64, 128, 256, 512, 1024]
+    # x_name = rf'$log_2$(dro_num_steps)'
+    # # vals = [16, 32, 64, 128, 256, 512, 1024]
+    # vals = [4, 5, 6, 7, 8, 9, 10]
     # for i in vals:
-    #     path_dict[f'dro/dro_num_steps={i}'] = f'../../results/exp_3_1/success_ref/results/ppo/dro/dro_num_steps_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_3_1/success_ref/results/ppo/dro/dro_num_steps_{(2 ** i)}'
 
     # key = 'dro/num_steps'
-    # vals = [256, 512, 1024, 2048]
+    # x_name = rf'$log_2$(num_steps)'
+    # # vals = [256, 512, 1024, 2048]
+    # vals = [8, 9, 10, 11]
     # for i in vals:
-    #     path_dict[f'dro/num_steps={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/dro/num_steps_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/dro/num_steps_{(2 ** i)}'
 
     # key = 'learning_progress/num_steps'
+    # x_name = key
     # vals = [256, 512, 1024, 2048]
     # for i in vals:
-    #     path_dict[f'learning_progress/num_steps={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/learning_progress/num_steps_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/learning_progress/num_steps_{i}'
 
     # key = 'uniform/num_steps'
+    # x_name = key
     # vals = [256, 512, 1024, 2048]
     # for i in vals:
-    #     path_dict[f'uniform/num_steps={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/uniform/num_steps_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_4_1/success_ref/results/ppo/uniform/num_steps_{i}'
 
     # key = 'learning_progress/dro_eta'
-    # vals = [1, 2, 4, 8, 16, 32, 64]
+    # x_name = rf'$log_2(dro_eta)$'
+    # # vals = [1, 2, 4, 8, 16, 32, 64]
+    # vals = [0, 1, 2, 3, 4, 5, 6]
     # for i in vals:
-    #     path_dict[f'learning_progress/dro_eta={i}'] = f'../../results/exp_lp_dro_eta/dro_eta={i}/results/ppo/learning_progress/dro_eta_0.2'
+    #     path_dict[f'f={i}'] = f'../../results/exp_lp_dro_eta/dro_eta={(2 ** i)}/results/ppo/learning_progress/dro_eta_0.2'
 
     # key = 'learning_progress/dro_num_steps'
-    # vals = [16, 32, 64, 128, 256, 512, 1024]
+    # x_name = rf'$log_2$(dro_num_steps)'
+    # # vals = [16, 32, 64, 128, 256, 512, 1024]
+    # vals = [4, 5, 6, 7, 8, 9, 10]
     # for i in vals:
-    #     path_dict[f'learning_progress/dro_num_steps={i}'] = f'../../results/exp_lp_dro_ns/success_ref/results/ppo/learning_progress/dro_num_steps_{i}'
+    #     path_dict[f'f={i}'] = f'../../results/exp_lp_dro_ns/success_ref/results/ppo/learning_progress/dro_num_steps_{(2 ** i)}'
 
-    key = 'learning_progress/dro_step_size'
-    vals = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
-    for i in vals:
-        path_dict[f'learning_progress/dro_step_size={i}'] = f'../../results/exp_lp_dro_step_size/success_ref/results/ppo/learning_progress/dro_step_size_{i}'
+    # key = 'learning_progress/dro_step_size'
+    # x_name = 'dro_step_size'
+    # vals = [0.01, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
+    # for i in vals:
+    #     path_dict[f'f={i}'] = f'../../results/exp_lp_dro_step_size/success_ref/results/ppo/learning_progress/dro_step_size_{i}'
 
     per_val_first_updates = []
     valid_vals = []
 
     for val in vals:
-        results_dir = path_dict[f'{key}={val}']
-        x, y = get_data(results_dir, x_name='update', y_name='success_rate')
+        results_dir = path_dict[f'f={val}']
+        x, y = get_data(results_dir, x_name='timestep', y_name='success_rate')
         if x is None or y is None:
             continue
 
@@ -151,12 +167,12 @@ if __name__ == "__main__":
     linestyle_dict[method_name] = '-'
     color_dict[method_name] = seaborn.color_palette('colorblind', n_colors=1)[0]
 
-    plot(x_dict, y_dict, linestyle_dict, color_dict)
+    plot(x_dict, y_dict, linestyle_dict, color_dict, x_name)
     x_dict, y_dict, linestyle_dict, color_dict = {}, {}, {}, {}
 
     plt.xticks(valid_vals)
     plt.grid(alpha=0.25)
-    plt.legend(fontsize='large')
+    # plt.legend(fontsize='large')
     # # Push plots down to make room for the the legend
     # fig.subplots_adjust(top=0.86)
     #
